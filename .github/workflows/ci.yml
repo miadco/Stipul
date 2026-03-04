@@ -1,0 +1,63 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: |
+          python -m pip install -U pip
+          python -m pip install -e ".[dev]"
+
+      - name: Guardrails (verify_chain)
+        run: |
+          # verify_chain() is only allowed in tests/test_chain_*.py.
+          if rg -n "verify_chain\\(" tests | rg -v "tests/test_chain_"; then
+            echo "Guardrail violation: verify_chain() is only allowed in tests/test_chain_*.py"
+            exit 1
+          fi
+
+          # Every chain test module must include signed_chain markers.
+          shopt -s nullglob
+          chain_tests=(tests/test_chain_*.py)
+          for test_file in "${chain_tests[@]}"; do
+            if ! rg -q "@pytest\\.mark\\.signed_chain" "${test_file}"; then
+              echo "Guardrail violation: ${test_file} must use @pytest.mark.signed_chain"
+              exit 1
+            fi
+          done
+
+      - name: Guardrails (DecayDetector.check)
+        run: |
+          # Fail if any test calls .check(...) without current_time=
+          # This is intentionally strict to prevent timing-flaky tests.
+          if rg -n "\\.check\\(" tests | rg -v "current_time\\s*="; then
+            echo "Guardrail violation: DecayDetector.check(...) in tests must pass current_time="
+            exit 1
+          fi
+
+      - name: Ruff
+        run: |
+          ruff check agentshield tests
+
+      - name: Mypy (strict)
+        run: |
+          mypy agentshield --strict
+
+      - name: Bandit
+        run: |
+          bandit -q -r agentshield
+
+      - name: Pytest
+        run: |
+          pytest -q
