@@ -22,7 +22,7 @@ jobs:
       - name: Guardrails (verify_chain)
         run: |
           # verify_chain() is only allowed in tests/test_chain_*.py.
-          if rg -n "verify_chain\\(" tests | rg -v "tests/test_chain_"; then
+          if grep -RInE --include="test*.py" "verify_chain\\(" tests | grep -v "tests/test_chain_"; then
             echo "Guardrail violation: verify_chain() is only allowed in tests/test_chain_*.py"
             exit 1
           fi
@@ -31,7 +31,7 @@ jobs:
           shopt -s nullglob
           chain_tests=(tests/test_chain_*.py)
           for test_file in "${chain_tests[@]}"; do
-            if ! rg -q "@pytest\\.mark\\.signed_chain" "${test_file}"; then
+            if ! grep -q "@pytest\\.mark\\.signed_chain" "${test_file}"; then
               echo "Guardrail violation: ${test_file} must use @pytest.mark.signed_chain"
               exit 1
             fi
@@ -41,7 +41,7 @@ jobs:
         run: |
           # Fail if any test calls .check(...) without current_time=
           # This is intentionally strict to prevent timing-flaky tests.
-          if rg -n "\\.check\\(" tests | rg -v "current_time\\s*="; then
+          if grep -RInE --include="test*.py" "\\.check\\(" tests | grep -Ev "current_time[[:space:]]*="; then
             echo "Guardrail violation: DecayDetector.check(...) in tests must pass current_time="
             exit 1
           fi
