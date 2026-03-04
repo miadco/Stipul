@@ -7,3 +7,6 @@ __pycache__/
 agentshield.egg-info/
 events.jsonl
 *.log
+
+# Local junk
+=41

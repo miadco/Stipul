@@ -105,3 +105,6 @@ Contracts are designed for Ed25519 signing. `to_canonical_dict()` produces the s
 | 4    | Bypass detection                | Upcoming |
 | 5    | CLI packaging                   | Upcoming |
 | 6    | OSS launch                      | Upcoming |
+
+## CI Preflight Gates
+GitHub Actions enforces a `preflight` job on every push and PR. The job runs `ruff`, `mypy --strict`, `bandit`, and `pytest`, plus guardrails for signed-chain tests and deterministic `DecayDetector.check(...)` usage.
