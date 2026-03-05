@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import hashlib
 import logging
@@ -19,12 +19,15 @@ from agentshield.budget import (
     load_budget_state,
     save_budget_state,
 )
+from agentshield.breakglass import BreakGlassEvent, BreakGlassManager
 from agentshield.contract.schema import Contract
 from agentshield.contract.utils import compute_contract_hash
+from agentshield.detection.bypass import BypassDetector
 from agentshield.events.logger import EventLogger
 from agentshield.events.store import EventStore
 from agentshield.events.summary import SessionSummary
 from agentshield.health.endpoint import HealthEndpoint
+from agentshield.permits import ExceptionPermit, PermitManager, load_permit_secret
 from agentshield.proxy.circuit_breaker import CircuitBreaker
 from agentshield.proxy.egress import check_egress
 from agentshield.proxy.interceptor import InterceptResult, intercept
@@ -195,6 +198,8 @@ class ProxyServer:
     state_dir: Path | None = None
     budget_tracker: BudgetTracker | None = None
     decay_detector: DecayDetector | None = None
+    active_permits: list[ExceptionPermit] = field(default_factory=list)
+    active_breakglass: BreakGlassEvent | None = None
 
     def __post_init__(self) -> None:
         self._tool_calls_made = 0
@@ -217,6 +222,9 @@ class ProxyServer:
             allow_read_fail_open=self.allow_read_fail_open,
             on_state_change=self._on_circuit_state_change,
         )
+        self._permit_secret: bytes | None = None
+        if self.active_permits:
+            self._permit_secret = load_permit_secret()
 
         if self.passthrough:
             print("⚠ PASSTHROUGH MODE — enforcement disabled")
@@ -282,6 +290,29 @@ class ProxyServer:
             }
             budget_exhaustion_timestamp = tracker.exhausted_at if tracker.exhausted else None
 
+        coverage_fields: dict[str, Any] | None = None
+        state_dir = Path(getattr(self, "state_dir", state.events_path.parent) or state.events_path.parent)
+        wrapper_log_path = state_dir / "wrapper_log.jsonl"
+        if wrapper_log_path.exists():
+            detector = BypassDetector(state.events_path, wrapper_log_path)
+            report = detector.detect(state.session_start, session_end)
+            coverage_fields = detector.to_summary_fields(report)
+            for gap_payload in detector.emit_gap_events(report.gaps):
+                gap_hash_payload = {
+                    "tool_name": gap_payload["tool_name"],
+                    "reason": gap_payload["reason"],
+                    "metadata": gap_payload["metadata"],
+                }
+                self.event_logger.log_event(
+                    {
+                        **gap_payload,
+                        "agent_identity": self._agent_identity_hash,
+                        "input_hash": hashlib.sha256(
+                            canonical_json_bytes(gap_hash_payload)
+                        ).hexdigest(),
+                    }
+                )
+
         summary = build_summary(
             events_path=state.events_path,
             contract=self.contract,
@@ -291,6 +322,7 @@ class ProxyServer:
             chain_result=chain_result,
             budget_consumed=budget_consumed,
             budget_exhaustion_timestamp=budget_exhaustion_timestamp,
+            coverage_fields=coverage_fields,
         )
 
         write_summary_json(summary, state.summary_path)
@@ -492,6 +524,71 @@ class ProxyServer:
         }
         return {**dict(raw_request), "state": state}
 
+    def _emit_override_event(
+        self,
+        *,
+        tool_name: str,
+        risk_class: str,
+        reason: str,
+        input_hash: str,
+        metadata: dict[str, Any],
+    ) -> None:
+        event = self.event_logger.log_event(
+            {
+                "event_type": "elev_op",
+                "tool_name": tool_name,
+                "risk_class": risk_class,
+                "decision": "allow",
+                "reason": reason,
+                "agent_identity": self._agent_identity_hash,
+                "input_hash": input_hash,
+                "metadata": metadata,
+            }
+        )
+        self.health.update_last_event_timestamp(event.timestamp)
+
+    def _forward_allowed_tool_call(
+        self,
+        raw_request: Mapping[str, Any],
+        forward_call: Callable[[Mapping[str, Any]], Any],
+        *,
+        tool_name: str,
+        risk_class: str,
+        reason: str,
+        input_hash: str,
+        egress_target: str | None,
+        override_metadata: dict[str, Any] | None = None,
+    ) -> Any:
+        if override_metadata is not None:
+            self._emit_override_event(
+                tool_name=tool_name,
+                risk_class=risk_class,
+                reason=reason,
+                input_hash=input_hash,
+                metadata=override_metadata,
+            )
+        token = mint_token(
+            tool_name=tool_name,
+            scope="tool.execute",
+            ttl=60,
+            session_id=self.session_id,
+            contract_id=self.contract.contract_id,
+        )
+        forwarded_request = _merge_headers(raw_request, token)
+        response = forward_call(forwarded_request)
+        self._log_decision(
+            event_type="tool_call",
+            tool_name=tool_name,
+            risk_class=risk_class,
+            decision="allow",
+            reason=reason,
+            input_hash=input_hash,
+        )
+        self._tool_calls_made += 1
+        if egress_target is not None:
+            self._net_calls_made += 1
+        return response
+
     def handle_tool_call(
         self,
         raw_request: Mapping[str, Any],
@@ -559,6 +656,82 @@ class ProxyServer:
 
         risk_hint = self.contract.tool_risk_classes.get(tool_name)
         risk_hint_wire = _risk_to_wire(risk_hint.value if risk_hint else "write")
+
+        current_time = datetime.now(timezone.utc)
+        if self.active_breakglass is not None:
+            breakglass_manager = BreakGlassManager(self.contract)
+            if breakglass_manager.check_tool_against_breakglass(
+                self.active_breakglass,
+                tool_name,
+                current_time,
+            ):
+                return self._forward_allowed_tool_call(
+                    raw_request,
+                    forward_call,
+                    tool_name=tool_name,
+                    risk_class=risk_hint_wire,
+                    reason="breakglass_active",
+                    input_hash=input_hash,
+                    egress_target=egress_target,
+                    override_metadata={
+                        "override_type": "breakglass",
+                        "breakglass_id": self.active_breakglass.breakglass_id,
+                        "triggered_by": self.active_breakglass.triggered_by,
+                        "triggered_at": self.active_breakglass.triggered_at,
+                        "expires_at": self.active_breakglass.expires_at,
+                        "scope": self.active_breakglass.scope,
+                    },
+                )
+
+        if self.active_permits:
+            permit_secret = self._permit_secret
+            if permit_secret is None:
+                raise RuntimeError("permit secret not initialized")
+            permit_manager = PermitManager(
+                contract=self.contract,
+                secret=permit_secret,
+                session_id=self.session_id,
+            )
+            for permit in self.active_permits:
+                validation = permit_manager.validate_permit(
+                    permit,
+                    current_time=current_time,
+                    contract_id=self.contract.contract_id,
+                    contract_hash=self._contract_hash,
+                    session_id=self.session_id,
+                )
+                if not validation.valid:
+                    _LOGGER.warning(
+                        "Active permit %s rejected during evaluation: %s",
+                        permit.permit_id,
+                        validation.reason,
+                    )
+                    continue
+                if tool_name in self.contract.never_allow_tools:
+                    continue
+                if tool_name not in permit.granted_tools:
+                    continue
+                if egress_target is not None:
+                    if not permit.granted_destinations or egress_target not in permit.granted_destinations:
+                        continue
+                return self._forward_allowed_tool_call(
+                    raw_request,
+                    forward_call,
+                    tool_name=tool_name,
+                    risk_class=risk_hint_wire,
+                    reason="exception_permit_active",
+                    input_hash=input_hash,
+                    egress_target=egress_target,
+                    override_metadata={
+                        "override_type": "permit",
+                        "permit_id": permit.permit_id,
+                        "request_id": permit.request_id,
+                        "approved_by": permit.approved_by,
+                        "approved_at": permit.approved_at,
+                        "expires_at": permit.expires_at,
+                    },
+                )
+
         intercepted = self.circuit_breaker.call(
             lambda: intercept(self._intercept_request(raw_request), self.contract),
             risk_class=risk_hint_wire,
@@ -578,19 +751,15 @@ class ProxyServer:
             if decision == "deny":
                 return _structured_error("proxy_degraded", tool_name)
 
-            token = mint_token(
+            return self._forward_allowed_tool_call(
+                raw_request,
+                forward_call,
                 tool_name=tool_name,
-                scope="tool.execute",
-                ttl=60,
-                session_id=self.session_id,
-                contract_id=self.contract.contract_id,
+                risk_class=risk_hint_wire,
+                reason="proxy_degraded",
+                input_hash=input_hash,
+                egress_target=egress_target,
             )
-            forwarded_request = _merge_headers(raw_request, token)
-            response = forward_call(forwarded_request)
-            self._tool_calls_made += 1
-            if egress_target is not None:
-                self._net_calls_made += 1
-            return response
 
         result = intercepted
         if not isinstance(result, InterceptResult):
@@ -641,28 +810,15 @@ class ProxyServer:
                 )
                 return _structured_error(egress_reason, result.tool_name)
 
-        token = mint_token(
-            tool_name=result.tool_name,
-            scope="tool.execute",
-            ttl=60,
-            session_id=self.session_id,
-            contract_id=self.contract.contract_id,
-        )
-        forwarded_request = _merge_headers(raw_request, token)
-        response = forward_call(forwarded_request)
-
-        self._log_decision(
-            event_type="tool_call",
+        return self._forward_allowed_tool_call(
+            raw_request,
+            forward_call,
             tool_name=result.tool_name,
             risk_class=result.risk_class,
-            decision="allow",
             reason=result.reason,
             input_hash=result.input_hash,
+            egress_target=egress_target,
         )
-        self._tool_calls_made += 1
-        if egress_target is not None:
-            self._net_calls_made += 1
-        return response
 
 
 def load_contract(contract_path: str | Path) -> Contract:

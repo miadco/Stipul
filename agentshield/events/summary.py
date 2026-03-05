@@ -6,7 +6,7 @@ import hashlib
 import json
 import logging
 from collections import defaultdict
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
@@ -51,6 +51,13 @@ class SessionSummary:
     chain_integrity: str
     attestations: list[str]
     known_blind_spots: list[str]
+    coverage_percentage: float | None = None
+    coverage_assessment: str | None = None
+    gaps_detected: int = 0
+    gap_details: list[dict[str, str]] = field(default_factory=list)
+    permit_allows: int = 0
+    breakglass_allows: int = 0
+    flagged_for_review: bool = False
 
 
 def _format_zulu(value: datetime) -> str:
@@ -139,6 +146,7 @@ def build_summary(
     chain_result: ChainResult,
     budget_consumed: dict[str, int | float],
     budget_exhaustion_timestamp: str | None = None,
+    coverage_fields: dict[str, Any] | None = None,
 ) -> SessionSummary:
     if session_start.tzinfo is None:
         raise ValueError("session_start must be timezone-aware")
@@ -157,6 +165,8 @@ def build_summary(
     total_approval_required = 0
     gap_detected_sequence_ids: list[int] = []
     budget_anomalies_detected = 0
+    permit_allows = 0
+    breakglass_allows = 0
 
     for event in events:
         event_type = event.get("event_type")
@@ -173,6 +183,10 @@ def build_summary(
             if decision == "allow":
                 tools_invoked[tool_name] += 1
                 total_allowed += 1
+                if reason == "exception_permit_active":
+                    permit_allows += 1
+                if reason == "breakglass_active":
+                    breakglass_allows += 1
             elif decision == "deny":
                 tools_denied[tool_name].append(reason)
                 total_denied += 1
@@ -251,6 +265,14 @@ def build_summary(
         ),
     ]
 
+    coverage_fields = dict(coverage_fields or {})
+    coverage_percentage = coverage_fields.get("coverage_percentage")
+    coverage_assessment = coverage_fields.get("coverage_assessment")
+    gaps_detected = int(coverage_fields.get("gaps_detected", len(gap_detected_sequence_ids)))
+    raw_gap_details = coverage_fields.get("gap_details", [])
+    gap_details = raw_gap_details if isinstance(raw_gap_details, list) else []
+    flagged_for_review = breakglass_allows > 0
+
     return SessionSummary(
         session_id=session_id,
         contract_id=contract.contract_id,
@@ -279,6 +301,13 @@ def build_summary(
         chain_integrity=_chain_integrity_text(chain_result),
         attestations=attestations,
         known_blind_spots=known_blind_spots,
+        coverage_percentage=coverage_percentage,
+        coverage_assessment=coverage_assessment,
+        gaps_detected=gaps_detected,
+        gap_details=gap_details,
+        permit_allows=permit_allows,
+        breakglass_allows=breakglass_allows,
+        flagged_for_review=flagged_for_review,
     )
 
 
