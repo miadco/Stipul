@@ -144,9 +144,9 @@ Contracts are designed for Ed25519 signing. `to_canonical_dict()` produces the s
 | Week | Scope                           | Status   |
 |------|---------------------------------|----------|
 | 1    | Contract schema + policy engine | ✓ Done   |
-| 2    | MCP proxy enforcement           | Upcoming |
-| 3    | Signed event stream             | Upcoming |
-| 4    | Bypass detection                | Upcoming |
+| 2    | MCP proxy enforcement           | ✓ Done   |
+| 3    | Signed event stream             | ✓ Done   |
+| 4    | Bypass detection                | ✓ Done   |
 | 5    | CLI packaging                   | ✓ Done   |
 | 6    | Scanner + launch wedge          | ✓ Done   |
 | 7    | Packaging + release workflow    | ✓ Done   |
