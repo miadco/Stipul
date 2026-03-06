@@ -9,16 +9,16 @@ from typing import Any, Callable
 
 import pytest
 
-from agentshield.contract.utils import compute_contract_hash
-from agentshield.events.decisions import (
+from stipul.charter.contract.utils import compute_contract_hash
+from stipul.chronicle.events.decisions import (
     DecisionRecord,
     generate_decisions,
     regenerate_if_invalid,
     verify_decisions,
     write_decisions,
 )
-from agentshield.events.summary import build_summary, summary_to_event, write_summary_json
-from agentshield.utils.canonical import canonical_json_bytes
+from stipul.chronicle.events.summary import build_summary, summary_to_event, write_summary_json
+from stipul.utils.canonical import canonical_json_bytes
 
 try:
     from hypothesis import given

@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from agentshield.signing.verifier import verify_decisions
-from agentshield.utils.canonical import canonical_json_bytes
+from stipul.chronicle.signing.verifier import verify_decisions
+from stipul.utils.canonical import canonical_json_bytes
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:

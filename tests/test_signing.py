@@ -11,12 +11,12 @@ import pytest
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
 
-from agentshield.contract.schema import Contract
-from agentshield.contract.utils import canonical_dict, compute_contract_hash
-from agentshield.proxy.session_head import read_session_head, write_session_head
-from agentshield.signing import signer as signer_module
-from agentshield.signing import verifier as verifier_module
-from agentshield.signing.keys import (
+from stipul.charter.contract.schema import Contract
+from stipul.charter.contract.utils import canonical_dict, compute_contract_hash
+from stipul.writ.proxy.session_head import read_session_head, write_session_head
+from stipul.chronicle.signing import signer as signer_module
+from stipul.chronicle.signing import verifier as verifier_module
+from stipul.chronicle.signing.keys import (
     KeyMetadataError,
     generate_keypair,
     get_key_id,
@@ -24,8 +24,8 @@ from agentshield.signing.keys import (
     load_or_create_keypair,
     rotate_key,
 )
-from agentshield.signing.signer import sign_event
-from agentshield.utils.canonical import canonical_event_payload, canonical_json_bytes, compute_prev_hash
+from stipul.chronicle.signing.signer import sign_event
+from stipul.utils.canonical import canonical_event_payload, canonical_json_bytes, compute_prev_hash
 
 
 def _mode(path: Path) -> int:
@@ -64,7 +64,7 @@ def _sample_event(signature: str | None = None) -> dict:
 
 
 def test_generate_keypair_sets_secure_permissions_and_sidecar(tmp_path: Path) -> None:
-    keys_dir = tmp_path / ".agentshield" / "keys"
+    keys_dir = tmp_path / ".stipul" / "keys"
     keypair = generate_keypair(keys_dir)
 
     assert keys_dir.exists()
@@ -84,7 +84,7 @@ def test_generate_keypair_sets_secure_permissions_and_sidecar(tmp_path: Path) ->
 
 
 def test_load_key_round_trips_existing_keypair_with_sidecar(tmp_path: Path) -> None:
-    keys_dir = tmp_path / ".agentshield" / "keys"
+    keys_dir = tmp_path / ".stipul" / "keys"
     generated = generate_keypair(keys_dir)
 
     loaded = load_key(generated.key_id, keys_dir)
@@ -96,19 +96,19 @@ def test_load_key_round_trips_existing_keypair_with_sidecar(tmp_path: Path) -> N
 
 
 def test_load_key_missing_sidecar_raises_fatal_message(tmp_path: Path) -> None:
-    keys_dir = tmp_path / ".agentshield" / "keys"
+    keys_dir = tmp_path / ".stipul" / "keys"
     generated = generate_keypair(keys_dir)
     generated.metadata_path.unlink()
 
     with pytest.raises(
         KeyMetadataError,
-        match=rf"Key metadata missing for key_id `{generated.key_id}`. Re-generate key with `agentshield rotate-key`.",
+        match=rf"Key metadata missing for key_id `{generated.key_id}`. Re-generate key with `stipul rotate-key`.",
     ):
         load_key(generated.key_id, keys_dir)
 
 
 def test_rotate_key_archives_previous_runtime_keypair_and_sidecar(tmp_path: Path) -> None:
-    keys_dir = tmp_path / ".agentshield" / "keys"
+    keys_dir = tmp_path / ".stipul" / "keys"
     first = generate_keypair(keys_dir)
 
     rotated = rotate_key(keys_dir)
@@ -126,7 +126,7 @@ def test_rotate_key_archives_previous_runtime_keypair_and_sidecar(tmp_path: Path
 
 
 def test_get_key_id_is_deterministic_for_same_public_key(tmp_path: Path) -> None:
-    keys_dir = tmp_path / ".agentshield" / "keys"
+    keys_dir = tmp_path / ".stipul" / "keys"
     keypair = generate_keypair(keys_dir)
 
     assert get_key_id(keypair.public_key) == keypair.key_id
@@ -263,7 +263,7 @@ def test_contract_signing_prev_hash_and_session_head_share_serialization_constan
 
 
 def test_signer_and_verifier_use_shared_canonical_helpers() -> None:
-    from agentshield.utils import canonical as canonical_module
+    from stipul.utils import canonical as canonical_module
 
     assert signer_module.canonical_event_payload is canonical_module.canonical_event_payload
     assert signer_module.compute_prev_hash is canonical_module.compute_prev_hash

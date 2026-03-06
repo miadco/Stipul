@@ -3,13 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from agentshield.contract.schema import Contract
-from agentshield.contract.utils import compute_contract_hash
-from agentshield.events.logger import EventLogger
-from agentshield.events.store import EventStore
-from agentshield.proxy.server import ProxyServer
-from agentshield.signing.keys import generate_keypair
-from agentshield.token.validate import validate_token
+from stipul.charter.contract.schema import Contract
+from stipul.charter.contract.utils import compute_contract_hash
+from stipul.chronicle.events.logger import EventLogger
+from stipul.chronicle.events.store import EventStore
+from stipul.writ.proxy.server import ProxyServer
+from stipul.chronicle.signing.keys import generate_keypair
+from stipul.charter.token.validate import validate_token
 
 _SESSION_ID = "11111111-1111-1111-1111-111111111111"
 
@@ -21,7 +21,7 @@ def _read_events(path: Path) -> list[dict]:
 
 
 def _build_proxy(contract: Contract, events_path: Path, **kwargs) -> ProxyServer:
-    keypair = generate_keypair(events_path.parent / ".agentshield" / "keys")
+    keypair = generate_keypair(events_path.parent / ".stipul" / "keys")
     logger = EventLogger(
         store=EventStore(events_path),
         session_id=_SESSION_ID,
@@ -215,7 +215,7 @@ def test_policy_error_on_write_returns_proxy_degraded(tmp_path: Path, monkeypatc
     def boom(*_args, **_kwargs):
         raise RuntimeError("policy failure")
 
-    monkeypatch.setattr("agentshield.proxy.server.intercept", boom)
+    monkeypatch.setattr("stipul.writ.proxy.server.intercept", boom)
 
     called = {"count": 0}
 
@@ -241,7 +241,7 @@ def test_three_policy_failures_emit_circuit_breaker_open_event(tmp_path: Path, m
     def boom(*_args, **_kwargs):
         raise RuntimeError("policy failure")
 
-    monkeypatch.setattr("agentshield.proxy.server.intercept", boom)
+    monkeypatch.setattr("stipul.writ.proxy.server.intercept", boom)
 
     for _ in range(3):
         proxy.handle_tool_call(

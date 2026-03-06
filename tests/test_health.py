@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from agentshield.health.endpoint import HealthEndpoint
+from stipul.health.endpoint import HealthEndpoint
 
 
 class FakeClock:

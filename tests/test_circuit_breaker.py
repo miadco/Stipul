@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from agentshield.proxy.circuit_breaker import CircuitBreaker
+from stipul.writ.proxy.circuit_breaker import CircuitBreaker
 
 
 class FakeClock:

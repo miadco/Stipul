@@ -1,5 +1,5 @@
-# AgentShield
-AgentShield is a security enforcement layer for AI agent platforms. Operators define a contract before an agent runs, and every tool call is checked against that contract at the execution boundary. The operating model is sign -> enforce -> prove: define and sign constraints, enforce them at runtime, then produce evidence of what was allowed or denied.
+# Stipul
+Stipul is a security enforcement layer for AI agent platforms. Operators define a contract before an agent runs, and every tool call is checked against that contract at the execution boundary. The operating model is sign -> enforce -> prove: define and sign constraints, enforce them at runtime, then produce evidence of what was allowed or denied.
 
 ## Trust Boundaries
 **Token secret isolation:** `AGENTSHIELD_TOKEN_SECRET` must not be present in
@@ -95,7 +95,7 @@ pytest
 
 ## Versioning And Release
 
-- `agentshield.__version__` in `agentshield/__init__.py` is the single version source of truth.
+- `stipul.__version__` in `stipul/__init__.py` is the single version source of truth.
 - Packaging metadata derives the project version from that attribute.
 - Release notes begin in `CHANGELOG.md`.
 - Threat-model assumptions and trust boundaries are summarized in `docs/THREAT_MODEL.md`.
@@ -114,11 +114,11 @@ The release workflow runs on `v*` tags, rebuilds the project from source, runs t
 Plain operator loop:
 
 ```bash
-agentshield scan /path/to/repo --json-out scan.json
-agentshield lint-contract --contract contract.json
-python -m agentshield.proxy.server --contract contract.json
-agentshield verify --session-dir /path/to/session --contract contract.json --public-key /path/to/runtime_key.pub
-agentshield export --session-dir /path/to/session --out-dir /path/to/bundle --contract contract.json --public-key /path/to/runtime_key.pub --scan-report scan.json
+stipul scan /path/to/repo --json-out scan.json
+stipul lint-contract --contract contract.json
+python -m stipul.writ.proxy.server --contract contract.json
+stipul verify --session-dir /path/to/session --contract contract.json --public-key /path/to/runtime_key.pub
+stipul export --session-dir /path/to/session --out-dir /path/to/bundle --contract contract.json --public-key /path/to/runtime_key.pub --scan-report scan.json
 ```
 
 Required environment variables:

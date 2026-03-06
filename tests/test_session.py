@@ -5,17 +5,17 @@ from pathlib import Path
 
 import pytest
 
-from agentshield.contract.utils import compute_contract_hash
-from agentshield.events.logger import EventLogger, EventWriteError
-from agentshield.events.store import EventStore
-from agentshield.proxy.server import ProxyServer
-from agentshield.proxy.session_lock import (
+from stipul.charter.contract.utils import compute_contract_hash
+from stipul.chronicle.events.logger import EventLogger, EventWriteError
+from stipul.chronicle.events.store import EventStore
+from stipul.writ.proxy.server import ProxyServer
+from stipul.writ.proxy.session_lock import (
     SessionLockError,
     acquire_session_lock,
     release_session_lock,
 )
-from agentshield.signing.keys import generate_keypair
-from agentshield.utils.canonical import compute_prev_hash
+from stipul.chronicle.signing.keys import generate_keypair
+from stipul.utils.canonical import compute_prev_hash
 
 _SESSION_ID = "11111111-1111-1111-1111-111111111111"
 _OTHER_SESSION_ID = "99999999-9999-9999-9999-999999999999"
@@ -34,7 +34,7 @@ def _event_kwargs(reason: str = "risk_class") -> dict:
 
 
 def _build_logger(tmp_path: Path, contract, session_id: str = _SESSION_ID) -> EventLogger:
-    keypair = generate_keypair(tmp_path / ".agentshield" / "keys")
+    keypair = generate_keypair(tmp_path / ".stipul" / "keys")
     return EventLogger(
         store=EventStore(tmp_path / "events.jsonl"),
         session_id=session_id,

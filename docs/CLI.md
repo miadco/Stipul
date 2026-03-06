@@ -1,13 +1,13 @@
-# AgentShield CLI
+# Stipul CLI
 
 ## Commands
 
-### `agentshield lint-contract`
+### `stipul lint-contract`
 
 Check a contract for operator-facing foot-guns after JSON loading and schema validation.
 
 ```bash
-agentshield lint-contract --contract contract.json
+stipul lint-contract --contract contract.json
 ```
 
 Exit codes:
@@ -16,12 +16,12 @@ Exit codes:
 - `1`: lint errors present
 - `3`: unreadable file or schema validation failure
 
-### `agentshield verify`
+### `stipul verify`
 
 Verify the signed event chain and the derivability of `decisions.jsonl` from `events.jsonl`.
 
 ```bash
-agentshield verify \
+stipul verify \
   --session-dir /path/to/session \
   --contract contract.json \
   --public-key /path/to/runtime_key.pub
@@ -33,12 +33,12 @@ Exit codes:
 - `2`: chain `BROKEN` or `UNVERIFIABLE`, or decisions projection invalid / missing
 - `3`: fatal input or parsing error
 
-### `agentshield export`
+### `stipul export`
 
 Write a deterministic evidence bundle from a session directory.
 
 ```bash
-agentshield export \
+stipul export \
   --session-dir /path/to/session \
   --out-dir /path/to/bundle \
   --contract contract.json \
@@ -55,12 +55,12 @@ Exit codes:
 - `0`: export completed
 - `3`: fatal input or filesystem error
 
-### `agentshield scan`
+### `stipul scan`
 
 Run a bounded, deterministic scanner against a file or directory.
 
 ```bash
-agentshield scan /path/to/repo --json-out scan.json
+stipul scan /path/to/repo --json-out scan.json
 ```
 
 The scanner:
@@ -76,12 +76,12 @@ Exit codes:
 - `1`: at least one finding at or above the fail threshold
 - `3`: fatal input or parsing error
 
-### `agentshield simulate`
+### `stipul simulate`
 
 Replay a trace against a contract using the Week 4 simulator.
 
 ```bash
-agentshield simulate --events events.jsonl --contract contract.json
+stipul simulate --events events.jsonl --contract contract.json
 ```
 
 Exit codes:
@@ -89,12 +89,12 @@ Exit codes:
 - `0`: simulation completed
 - `3`: fatal input error
 
-### `agentshield diff`
+### `stipul diff`
 
 Compare two contracts against the same trace.
 
 ```bash
-agentshield diff \
+stipul diff \
   --events events.jsonl \
   --contract-a contract_a.json \
   --contract-b contract_b.json
@@ -118,9 +118,9 @@ A session directory must contain `events.jsonl`. It may also contain:
 
 Release validation builds both wheel and sdist artifacts, then installs each into a fresh virtual environment before running:
 
-- `agentshield --help`
-- `agentshield verify --help`
-- `agentshield scan --help`
+- `stipul --help`
+- `stipul verify --help`
+- `stipul scan --help`
 
 The checked-in helper is `scripts/validate_dist.sh`.
 

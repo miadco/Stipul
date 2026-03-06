@@ -2,19 +2,19 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from agentshield.breakglass import BreakGlassManager
-from agentshield.contract.inheritance import ContractLayer, InheritanceResolver
-from agentshield.contract.schema import Contract
-from agentshield.contract.utils import compute_contract_hash
-from agentshield.detection.bypass import BypassDetector
-from agentshield.events.logger import EventLogger
-from agentshield.events.store import EventStore
-from agentshield.permits import PERMIT_SECRET_ENV, PermitManager
-from agentshield.proxy.server import ProxyServer
-from agentshield.signing.keys import generate_keypair
-from agentshield.simulation.simulator import PolicySimulator
-from agentshield.token.mint import mint_token
-from agentshield.wrapper.mcp_wrapper import handle_tool_call
+from stipul.writ.breakglass import BreakGlassManager
+from stipul.charter.contract.inheritance import ContractLayer, InheritanceResolver
+from stipul.charter.contract.schema import Contract
+from stipul.charter.contract.utils import compute_contract_hash
+from stipul.writ.detection.bypass import BypassDetector
+from stipul.chronicle.events.logger import EventLogger
+from stipul.chronicle.events.store import EventStore
+from stipul.charter.permits import PERMIT_SECRET_ENV, PermitManager
+from stipul.writ.proxy.server import ProxyServer
+from stipul.chronicle.signing.keys import generate_keypair
+from stipul.simulation.simulator import PolicySimulator
+from stipul.charter.token.mint import mint_token
+from stipul.writ.wrapper.mcp_wrapper import handle_tool_call
 
 _SESSION_ID = "11111111-1111-1111-1111-111111111111"
 _PERMIT_SECRET = b"permit-secret"
@@ -23,7 +23,7 @@ _HEX_B = "b" * 64
 
 
 def _build_proxy(contract: Contract, events_path: Path, **kwargs) -> ProxyServer:
-    keypair = generate_keypair(events_path.parent / ".agentshield" / "keys")
+    keypair = generate_keypair(events_path.parent / ".stipul" / "keys")
     logger = EventLogger(
         store=EventStore(events_path),
         session_id=_SESSION_ID,

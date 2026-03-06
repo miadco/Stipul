@@ -2,9 +2,9 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from agentshield.contract.schema import Contract
-from agentshield.exceptions import ContractValidationError
-from agentshield.models import RiskClass
+from stipul.charter.contract.schema import Contract
+from stipul.exceptions import ContractValidationError
+from stipul.models import RiskClass
 
 
 def test_valid_fixture_loads(base_dict):

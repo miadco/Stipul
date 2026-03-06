@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 
-from agentshield.contract.schema import Contract
-from agentshield.engine.policy import evaluate
-from agentshield.models import RiskClass
+from stipul.charter.contract.schema import Contract
+from stipul.charter.engine.policy import evaluate
+from stipul.models import RiskClass
 from tests.conftest import make_state, pick_read_tool, pick_write_tool
 
 

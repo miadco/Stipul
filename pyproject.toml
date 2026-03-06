@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agentshield"
+name = "stipul"
 dynamic = ["version"]
 description = "Policy and contract utilities for agent safety."
 readme = "README.md"
@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-agentshield = "agentshield.cli.main:main"
+stipul = "stipul.cli.main:main"
 
 [project.optional-dependencies]
 test = [
@@ -31,7 +31,7 @@ dev = [
 ]
 
 [tool.setuptools.dynamic]
-version = {attr = "agentshield.__version__"}
+version = {attr = "stipul.__version__"}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -12,15 +12,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from agentshield.budget.tracker import BudgetTracker
-from agentshield.contract.utils import compute_contract_hash
-from agentshield.events.decisions import DecisionVerification
-from agentshield.events.decisions import verify_decisions as verify_decisions_projection
-from agentshield.events.logger import EventLogger
-from agentshield.events.store import EventStore
-from agentshield.proxy.server import ProxyServer
-from agentshield.proxy.session import SessionState
-from agentshield.signing.keys import generate_keypair
+from stipul.charter.budget.tracker import BudgetTracker
+from stipul.charter.contract.utils import compute_contract_hash
+from stipul.chronicle.events.decisions import DecisionVerification
+from stipul.chronicle.events.decisions import verify_decisions as verify_decisions_projection
+from stipul.chronicle.events.logger import EventLogger
+from stipul.chronicle.events.store import EventStore
+from stipul.writ.proxy.server import ProxyServer
+from stipul.writ.proxy.session import SessionState
+from stipul.chronicle.signing.keys import generate_keypair
 
 SESSION_START = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
 SESSION_END = datetime(2026, 1, 1, 0, 5, 0, tzinfo=timezone.utc)
@@ -203,7 +203,7 @@ def test_session_close_warns_if_decisions_post_write_invalid(
             mismatches=[],
         )
 
-    monkeypatch.setattr("agentshield.events.decisions.verify_decisions", _fake_verify)
+    monkeypatch.setattr("stipul.chronicle.events.decisions.verify_decisions", _fake_verify)
     with caplog.at_level(logging.WARNING):
         ProxyServer.session_close(proxy_stub, session_state, SESSION_END, CHAIN_OK)
 
@@ -223,7 +223,7 @@ def test_summary_event_round_trip_through_real_event_logger(
         decisions_path=tmp_path / "decisions.jsonl",
         summary_path=tmp_path / "summary.json",
     )
-    keypair = generate_keypair(tmp_path / ".agentshield" / "keys")
+    keypair = generate_keypair(tmp_path / ".stipul" / "keys")
     logger = EventLogger(
         store=EventStore(events_path),
         session_id=state.session_id,

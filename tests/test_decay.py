@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from agentshield.budget.decay import DecayAlert, DecayDetector
+from stipul.charter.budget.decay import DecayAlert, DecayDetector
 
 try:
     from hypothesis import assume, given, settings
@@ -40,7 +40,7 @@ def test_decay_alert_fields_and_alias() -> None:
         "budget_limit",
     ]
 
-    decay_module = __import__("agentshield.budget.decay", fromlist=["DecayAnomaly"])
+    decay_module = __import__("stipul.charter.budget.decay", fromlist=["DecayAnomaly"])
     assert decay_module.DecayAnomaly is DecayAlert
 
     detector = _build_detector()

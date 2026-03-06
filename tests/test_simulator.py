@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import copy
 
-from agentshield.contract.schema import Contract
-from agentshield.simulation.simulator import PolicySimulator
+from stipul.charter.contract.schema import Contract
+from stipul.simulation.simulator import PolicySimulator
 
 
 def test_simulate_no_changes(contract, make_test_events):

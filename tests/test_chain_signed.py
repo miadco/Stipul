@@ -6,11 +6,11 @@ from typing import Any
 
 import pytest
 
-from agentshield.contract.utils import compute_contract_hash
-from agentshield.signing.keys import generate_keypair
-from agentshield.signing.signer import sign_event
-from agentshield.signing.verifier import verify_chain
-from agentshield.utils.canonical import canonical_json_bytes, compute_prev_hash
+from stipul.charter.contract.utils import compute_contract_hash
+from stipul.chronicle.signing.keys import generate_keypair
+from stipul.chronicle.signing.signer import sign_event
+from stipul.chronicle.signing.verifier import verify_chain
+from stipul.utils.canonical import canonical_json_bytes, compute_prev_hash
 
 SESSION_ID = "11111111-1111-1111-1111-111111111111"
 OTHER_SESSION_ID = "99999999-9999-9999-9999-999999999999"

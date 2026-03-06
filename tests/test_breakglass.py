@@ -5,9 +5,9 @@ from datetime import datetime, timezone
 
 import pytest
 
-from agentshield.breakglass import BreakGlassManager
-from agentshield.contract.utils import compute_contract_hash
-from agentshield.events.models import CanonicalEvent
+from stipul.writ.breakglass import BreakGlassManager
+from stipul.charter.contract.utils import compute_contract_hash
+from stipul.chronicle.events.models import CanonicalEvent
 
 _SESSION_ID = "11111111-1111-1111-1111-111111111111"
 _TRIGGERED_BY = "a" * 64
@@ -50,7 +50,7 @@ def _event(
 def test_trigger_valid_logs_warning(caplog, contract):
     manager = BreakGlassManager(contract)
 
-    with caplog.at_level("WARNING", logger="agentshield.breakglass"):
+    with caplog.at_level("WARNING", logger="stipul.writ.breakglass"):
         event = manager.trigger(
             triggered_by_hex64=_TRIGGERED_BY,
             reason="Need emergency write access now",

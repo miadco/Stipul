@@ -48,7 +48,7 @@ def _assert_artifact_smoke(
     )
 
     python_bin = venv_dir / "bin" / "python"
-    agentshield_bin = venv_dir / "bin" / "agentshield"
+    agentshield_bin = venv_dir / "bin" / "stipul"
 
     subprocess.run(
         [
@@ -79,10 +79,10 @@ def _assert_artifact_smoke(
             env=env,
         )
         assert result.returncode == 0
-        assert "usage: agentshield" in result.stdout
+        assert "usage: stipul" in result.stdout
 
     version_result = subprocess.run(
-        [str(python_bin), "-c", "import agentshield; print(agentshield.__version__)"],
+        [str(python_bin), "-c", "import stipul; print(stipul.__version__)"],
         check=False,
         capture_output=True,
         text=True,

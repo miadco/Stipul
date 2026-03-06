@@ -5,16 +5,16 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
-from agentshield.breakglass import BreakGlassManager
-from agentshield.contract.schema import Contract
-from agentshield.contract.utils import compute_contract_hash
-from agentshield.events.logger import EventLogger
-from agentshield.events.store import EventStore
-from agentshield.permits import PERMIT_SECRET_ENV, PermitManager
-from agentshield.proxy.server import ProxyServer
-from agentshield.proxy.session import SessionState
-from agentshield.signing.keys import generate_keypair
-from agentshield.token.validate import validate_token
+from stipul.writ.breakglass import BreakGlassManager
+from stipul.charter.contract.schema import Contract
+from stipul.charter.contract.utils import compute_contract_hash
+from stipul.chronicle.events.logger import EventLogger
+from stipul.chronicle.events.store import EventStore
+from stipul.charter.permits import PERMIT_SECRET_ENV, PermitManager
+from stipul.writ.proxy.server import ProxyServer
+from stipul.writ.proxy.session import SessionState
+from stipul.chronicle.signing.keys import generate_keypair
+from stipul.charter.token.validate import validate_token
 
 _SESSION_ID = "11111111-1111-1111-1111-111111111111"
 _PERMIT_SECRET = b"permit-secret"
@@ -29,7 +29,7 @@ def _read_events(path: Path) -> list[dict]:
 
 
 def _build_proxy(contract: Contract, events_path: Path, **kwargs) -> ProxyServer:
-    keypair = generate_keypair(events_path.parent / ".agentshield" / "keys")
+    keypair = generate_keypair(events_path.parent / ".stipul" / "keys")
     logger = EventLogger(
         store=EventStore(events_path),
         session_id=_SESSION_ID,

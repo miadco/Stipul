@@ -7,7 +7,7 @@ def test_agentshield_help_works() -> None:
     result = run_cli("--help")
 
     assert result.returncode == 0
-    assert "usage: agentshield" in result.stdout
+    assert "usage: stipul" in result.stdout
     assert "verify" in result.stdout
     assert "scan" in result.stdout
 
@@ -16,7 +16,7 @@ def test_agentshield_verify_help_works() -> None:
     result = run_cli("verify", "--help")
 
     assert result.returncode == 0
-    assert "usage: agentshield verify" in result.stdout
+    assert "usage: stipul verify" in result.stdout
     assert "--session-dir" in result.stdout
 
 

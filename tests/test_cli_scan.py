@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from agentshield.cli import scan_cmd
+from stipul.cli import scan_cmd
 
 
 def _build_repo(tmp_path: Path) -> Path:

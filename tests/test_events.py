@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from agentshield.contract.utils import compute_contract_hash
-from agentshield.events.logger import EventLogger, EventWriteError
-from agentshield.events.models import CanonicalEvent
-from agentshield.events.store import EventStore
-from agentshield.signing.keys import generate_keypair
+from stipul.charter.contract.utils import compute_contract_hash
+from stipul.chronicle.events.logger import EventLogger, EventWriteError
+from stipul.chronicle.events.models import CanonicalEvent
+from stipul.chronicle.events.store import EventStore
+from stipul.chronicle.signing.keys import generate_keypair
 
 _SESSION_ID = "11111111-1111-1111-1111-111111111111"
 
@@ -55,7 +55,7 @@ def _logger_event_kwargs() -> dict:
 
 
 def _build_logger(tmp_path: Path, contract) -> EventLogger:
-    keys_dir = tmp_path / ".agentshield" / "keys"
+    keys_dir = tmp_path / ".stipul" / "keys"
     keypair = generate_keypair(keys_dir)
     return EventLogger(
         store=EventStore(tmp_path / "events.jsonl"),

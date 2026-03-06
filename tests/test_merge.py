@@ -6,10 +6,10 @@ from dataclasses import replace
 
 import pytest
 
-from agentshield.contract.merge import RISK_SEVERITY, merge
-from agentshield.contract.schema import Contract
-from agentshield.exceptions import ContractMergeViolation
-from agentshield.models import RiskClass
+from stipul.charter.contract.merge import RISK_SEVERITY, merge
+from stipul.charter.contract.schema import Contract
+from stipul.exceptions import ContractMergeViolation
+from stipul.models import RiskClass
 
 
 def make_child_dict(base_dict: dict, **overrides) -> dict:

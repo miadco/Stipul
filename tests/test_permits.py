@@ -7,10 +7,10 @@ from datetime import datetime, timezone
 
 import pytest
 
-from agentshield.contract.schema import Contract
-from agentshield.contract.utils import compute_contract_hash
-from agentshield.events.models import CanonicalEvent
-from agentshield.permits import (
+from stipul.charter.contract.schema import Contract
+from stipul.charter.contract.utils import compute_contract_hash
+from stipul.chronicle.events.models import CanonicalEvent
+from stipul.charter.permits import (
     PermitManager,
     PermitScopeError,
     PermitTTLError,

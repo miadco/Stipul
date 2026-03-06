@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from agentshield.events.decisions import generate_decisions, write_decisions
+from stipul.chronicle.events.decisions import generate_decisions, write_decisions
 from tests.cli_support import create_signed_session, run_cli
 
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from agentshield.token.mint import mint_token
-from agentshield.wrapper.mcp_wrapper import handle_tool_call
+from stipul.charter.token.mint import mint_token
+from stipul.writ.wrapper.mcp_wrapper import handle_tool_call
 
 
 def test_wrapper_allows_valid_token(monkeypatch, contract):
@@ -83,7 +83,7 @@ def test_wrapper_internal_error_returns_wrapper_error(monkeypatch):
     def boom(_token, _tool_name):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr("agentshield.wrapper.mcp_wrapper.validate_token", boom)
+    monkeypatch.setattr("stipul.writ.wrapper.mcp_wrapper.validate_token", boom)
 
     result = handle_tool_call(
         {

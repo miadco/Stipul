@@ -8,16 +8,16 @@ from pathlib import Path
 
 import pytest
 
-from agentshield.budget.decay import DecayDetector
-from agentshield.budget.state import load_budget_state, save_budget_state
-from agentshield.budget.tracker import BudgetTracker
-from agentshield.contract.schema import Contract
-from agentshield.contract.utils import compute_contract_hash
-from agentshield.events.logger import EventLogger
-from agentshield.events.store import EventStore
-from agentshield.exceptions import BudgetExhaustedError
-from agentshield.proxy.server import ProxyServer
-from agentshield.signing.keys import generate_keypair
+from stipul.charter.budget.decay import DecayDetector
+from stipul.charter.budget.state import load_budget_state, save_budget_state
+from stipul.charter.budget.tracker import BudgetTracker
+from stipul.charter.contract.schema import Contract
+from stipul.charter.contract.utils import compute_contract_hash
+from stipul.chronicle.events.logger import EventLogger
+from stipul.chronicle.events.store import EventStore
+from stipul.exceptions import BudgetExhaustedError
+from stipul.writ.proxy.server import ProxyServer
+from stipul.chronicle.signing.keys import generate_keypair
 
 _SESSION_ID = "11111111-1111-1111-1111-111111111111"
 
@@ -36,7 +36,7 @@ def _build_proxy(
     decay_detector: DecayDetector | None = None,
     **kwargs,
 ) -> ProxyServer:
-    keypair = generate_keypair(events_path.parent / ".agentshield" / "keys")
+    keypair = generate_keypair(events_path.parent / ".stipul" / "keys")
     logger = EventLogger(
         store=EventStore(events_path),
         session_id=_SESSION_ID,
@@ -337,7 +337,7 @@ def test_proxy_budget_check_runs_before_policy_eval(tmp_path: Path, monkeypatch,
         called["intercept"] += 1
         raise AssertionError("policy layer should not run after budget denial")
 
-    monkeypatch.setattr("agentshield.proxy.server.intercept", _boom)
+    monkeypatch.setattr("stipul.writ.proxy.server.intercept", _boom)
 
     response = proxy.handle_tool_call(
         {"tool_name": "filesystem.write", "inputs": {"path": "out.txt"}},
@@ -388,7 +388,7 @@ def test_proxy_budget_deny_never_mints_token(tmp_path: Path, monkeypatch, contra
         minted["count"] += 1
         return "token"
 
-    monkeypatch.setattr("agentshield.proxy.server.mint_token", _fake_mint)
+    monkeypatch.setattr("stipul.writ.proxy.server.mint_token", _fake_mint)
     response = proxy.handle_tool_call(
         {"tool_name": "filesystem.write", "inputs": {"path": "out.txt"}},
         lambda _request: {"ok": True},

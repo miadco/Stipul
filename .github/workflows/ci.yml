@@ -48,15 +48,15 @@ jobs:
 
       - name: Ruff
         run: |
-          ruff check agentshield tests
+          ruff check stipul tests
 
       - name: Mypy (strict)
         run: |
-          mypy agentshield --strict
+          mypy stipul --strict
 
       - name: Bandit
         run: |
-          bandit -q -r agentshield
+          bandit -q -r stipul
 
       - name: Pytest
         run: |

@@ -7,13 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from agentshield.contract.inheritance import (
+from stipul.charter.contract.inheritance import (
     ContractInheritanceError,
     ContractLayer,
     InheritanceResolver,
 )
-from agentshield.contract.schema import Contract
-from agentshield.contract.templates import (
+from stipul.charter.contract.schema import Contract
+from stipul.charter.contract.templates import (
     admin_agent_template,
     read_only_agent_template,
     sandbox_dev_template,
