@@ -1,0 +1,77 @@
+name: Release Validate (Dry Run)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Ref to validate (branch, SHA, or tag)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  release-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout requested ref
+        if: ${{ inputs.ref != '' }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Checkout workflow ref
+        if: ${{ inputs.ref == '' }}
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: |
+          python -m pip install -U pip setuptools wheel
+          python -m pip install -e ".[dev]"
+
+      - name: Ruff
+        run: |
+          ruff check agentshield tests
+
+      - name: Mypy (strict)
+        run: |
+          mypy agentshield --strict
+
+      - name: Bandit
+        run: |
+          bandit -q -r agentshield
+
+      - name: Pytest
+        run: |
+          pytest -q
+
+      - name: Build artifacts
+        run: |
+          python -m build --no-isolation
+
+      - name: Twine check
+        run: |
+          python -m twine check dist/*
+
+      - name: Generate checksums
+        run: |
+          sha256sum dist/* > dist/SHA256SUMS
+
+      - name: Validate install smoke
+        run: |
+          bash scripts/validate_dist.sh dist
+
+      - name: Upload dry-run artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-validate-dist
+          path: dist/*
+
+      - name: Dry run banner
+        run: |
+          echo "DRY RUN ONLY. NO PUBLISHING PERFORMED."
