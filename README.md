@@ -93,6 +93,50 @@ pip install -e ".[dev]"
 pytest
 ```
 
+## Versioning And Release
+
+- `agentshield.__version__` in `agentshield/__init__.py` is the single version source of truth.
+- Packaging metadata derives the project version from that attribute.
+- Release notes begin in `CHANGELOG.md`.
+- Threat-model assumptions and trust boundaries are summarized in `docs/THREAT_MODEL.md`.
+
+Repeatable release build flow:
+
+```bash
+python -m build --no-isolation
+python -m twine check dist/*
+bash scripts/validate_dist.sh dist
+```
+
+The release workflow runs on `v*` tags, rebuilds the project from source, runs the full test and static-analysis gates, validates wheel and sdist installs in fresh virtual environments, and publishes artifact hashes alongside the built distributions.
+
+## Operator Workflow
+Plain operator loop:
+
+```bash
+agentshield scan /path/to/repo --json-out scan.json
+agentshield lint-contract --contract contract.json
+python -m agentshield.proxy.server --contract contract.json
+agentshield verify --session-dir /path/to/session --contract contract.json --public-key /path/to/runtime_key.pub
+agentshield export --session-dir /path/to/session --out-dir /path/to/bundle --contract contract.json --public-key /path/to/runtime_key.pub --scan-report scan.json
+```
+
+Required environment variables:
+
+- `AGENTSHIELD_TOKEN_SECRET`: token minting / validation secret. Keep it out of the agent runtime environment.
+- `AGENTSHIELD_PERMIT_SECRET`: required when JIT permit validation is enabled.
+- `AGENTSHIELD_WRAPPER_LOG_PATH`: optional wrapper log path used for coverage and bypass-gap detection.
+
+Operator notes:
+
+- `scan` is heuristic, deterministic, and read-only. It never imports scanned modules, executes code, or makes network calls.
+- `verify` proves signed-chain integrity and that `decisions.jsonl` matches the authoritative `events.jsonl` projection.
+- `export` produces a shareable evidence bundle. Use `--redact` when you need to remove metadata leaf values from `events.jsonl`, and `--scan-report` when you want to bundle prior scanner output. Its manifest `exported_at` is derived from session artifacts so repeated exports of the same inputs stay deterministic.
+- Trust remains bounded: response payloads are not inspected, agent filesystem writes are not monitored, and coverage claims depend on wrapper logging when `wrapper_log.jsonl` is present.
+
+See `docs/CLI.md` for command details and exit codes.
+See `CHANGELOG.md`, `docs/THREAT_MODEL.md`, and `SECURITY.md` for release and trust documentation.
+
 ## Signing (Week 3)
 Contracts are designed for Ed25519 signing. `to_canonical_dict()` produces the signing input with lexicographically sorted keys, null values removed, and `signed_by` plus `parent_contract_id` excluded from signing scope. Signing implementation ships in Week 3.
 
@@ -103,8 +147,9 @@ Contracts are designed for Ed25519 signing. `to_canonical_dict()` produces the s
 | 2    | MCP proxy enforcement           | Upcoming |
 | 3    | Signed event stream             | Upcoming |
 | 4    | Bypass detection                | Upcoming |
-| 5    | CLI packaging                   | Upcoming |
-| 6    | OSS launch                      | Upcoming |
+| 5    | CLI packaging                   | ✓ Done   |
+| 6    | Scanner + launch wedge          | ✓ Done   |
+| 7    | Packaging + release workflow    | ✓ Done   |
 
 ## CI Preflight Gates
 GitHub Actions enforces a `preflight` job on every push and PR. The job runs `ruff`, `mypy --strict`, `bandit`, and `pytest`, plus guardrails for signed-chain tests and deterministic `DecayDetector.check(...)` usage.

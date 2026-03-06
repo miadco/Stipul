@@ -1,0 +1,47 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from tests.cli_support import load_base_contract_dict, run_cli
+
+
+def _write_contract(path: Path, payload: dict[str, object]) -> None:
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def test_cli_lint_contract_success_with_warnings(tmp_path: Path) -> None:
+    contract_path = tmp_path / "contract.json"
+    _write_contract(contract_path, load_base_contract_dict())
+
+    result = run_cli("lint-contract", "--contract", str(contract_path))
+
+    assert result.returncode == 0
+    assert "Errors: 0" in result.stdout
+    assert "WARN implicit_risk_defaults" in result.stdout
+
+
+def test_cli_lint_contract_returns_error_exit_for_no_policy(tmp_path: Path) -> None:
+    payload = load_base_contract_dict()
+    payload["allowed_tools"] = []
+    payload["never_allow_tools"] = []
+    payload["tool_risk_classes"] = {}
+    contract_path = tmp_path / "contract.json"
+    _write_contract(contract_path, payload)
+
+    result = run_cli("lint-contract", "--contract", str(contract_path))
+
+    assert result.returncode == 1
+    assert "ERROR no_policy_defined" in result.stdout
+
+
+def test_cli_lint_contract_returns_fatal_for_schema_invalid_payload(tmp_path: Path) -> None:
+    payload = load_base_contract_dict()
+    payload["expires_at"] = payload["created_at"]
+    contract_path = tmp_path / "contract.json"
+    _write_contract(contract_path, payload)
+
+    result = run_cli("lint-contract", "--contract", str(contract_path))
+
+    assert result.returncode == 3
+    assert "expires_at must be strictly after created_at" in result.stderr
