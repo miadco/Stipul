@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from stipul.charter.contract.loader import load_charter
 from stipul.charter.contract.merge import RISK_SEVERITY, merge
 from stipul.charter.contract.schema import Contract
 from stipul.exceptions import ContractMergeViolation
@@ -83,11 +84,10 @@ class InheritanceResolver:
             if raw_path is None:
                 continue
             path = Path(raw_path)
-            payload = json.loads(path.read_text(encoding="utf-8"))
             layers.append(
                 ContractLayer(
                     level=level,  # type: ignore[arg-type]
-                    contract=Contract.from_dict(payload),
+                    contract=load_charter(path).contract,
                     source=str(path),
                 )
             )

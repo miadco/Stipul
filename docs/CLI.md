@@ -4,10 +4,10 @@
 
 ### `stipul lint-contract`
 
-Check a contract for operator-facing foot-guns after JSON loading and schema validation.
+Check a Charter policy file for operator-facing foot-guns after loading and schema validation.
 
 ```bash
-stipul lint-contract --contract contract.json
+stipul lint-contract --contract charter.yaml
 ```
 
 Exit codes:
@@ -18,19 +18,19 @@ Exit codes:
 
 ### `stipul verify`
 
-Verify the signed event chain and the derivability of `decisions.jsonl` from `events.jsonl`.
+Verify the signed authoritative `events.jsonl` chain.
 
 ```bash
 stipul verify \
   --session-dir /path/to/session \
-  --contract contract.json \
+  --contract charter.yaml \
   --public-key /path/to/runtime_key.pub
 ```
 
 Exit codes:
 
-- `0`: chain status `INTACT` and decisions projection valid
-- `2`: chain `BROKEN` or `UNVERIFIABLE`, or decisions projection invalid / missing
+- `0`: chain status `INTACT`
+- `2`: chain `BROKEN` or `UNVERIFIABLE`
 - `3`: fatal input or parsing error
 
 ### `stipul export`
@@ -41,14 +41,46 @@ Write a deterministic evidence bundle from a session directory.
 stipul export \
   --session-dir /path/to/session \
   --out-dir /path/to/bundle \
-  --contract contract.json \
+  --contract charter.yaml \
   --public-key /path/to/runtime_key.pub \
-  --scan-report scan.json
+  --scan-report scan.json \
+  --siem-out /path/to/siem_events.jsonl \
+  --timestamp-rfc3161 https://tsa.example
 ```
 
 Use `--redact` to emit `redacted_events.jsonl` instead of copying `events.jsonl`. Redaction only touches metadata leaf values; it does not re-sign events. Use `--scan-report` to include a previously generated scan report in the evidence bundle.
 
 `manifest.json` uses a source-derived `exported_at` value so repeated exports of the same session inputs remain byte-stable.
+
+`--siem-out` writes a downstream SIEM-friendly JSONL projection derived from the authoritative `events.jsonl` file on disk. It does not create a second Chronicle authority or a second event ledger.
+
+`--timestamp-rfc3161 <tsa-url>` submits the deterministic non-redacted export bundle hash to an RFC 3161 timestamp authority and writes a receipt at `<out-dir>/rfc3161_receipt.json`. This is additive only. It does not change Seal verification, which remains bound to `events.jsonl`.
+
+`--timestamp-rfc3161` is incompatible with `--redact`.
+
+Optional SIEM filters:
+
+- `--event-type <value>`
+- `--decision <value>`
+- `--ingress <value>`
+- `--since <UTC timestamp>`
+- `--until <UTC timestamp>`
+
+The SIEM export writes:
+
+- the filtered JSONL file at `--siem-out`
+- a companion manifest at `<siem-out>.manifest.json`
+
+The SIEM manifest includes:
+
+- `source_events_sha256`: SHA-256 of the authoritative `events.jsonl` file before flattening
+- `exported_at`: deterministic source-derived timestamp
+- `applied_filters`
+- source identity fields such as `source_session_id` and `source_contract_hash`
+
+SIEM output is additive only. Seal verification still applies to the original `events.jsonl`, not to the downstream SIEM projection.
+
+RFC 3161 timestamping is additive only. It timestamps the export bundle `top_level_sha256` from `manifest.json`, not `events.jsonl` directly, and does not replace local Seal verification.
 
 Exit codes:
 
@@ -81,7 +113,7 @@ Exit codes:
 Replay a trace against a contract using the Week 4 simulator.
 
 ```bash
-stipul simulate --events events.jsonl --contract contract.json
+stipul simulate --events events.jsonl --contract charter.yaml
 ```
 
 Exit codes:
@@ -96,14 +128,56 @@ Compare two contracts against the same trace.
 ```bash
 stipul diff \
   --events events.jsonl \
-  --contract-a contract_a.json \
-  --contract-b contract_b.json
+  --contract-a contract_a.yaml \
+  --contract-b contract_b.yaml
 ```
 
 Exit codes:
 
 - `0`: diff completed
 - `3`: fatal input error
+
+### `stipul gateway mcp`
+
+Run the existing MCP gateway surface over stdio.
+
+```bash
+stipul gateway mcp \
+  --contract charter.yaml \
+  --session-dir /path/to/session \
+  --session-id 11111111-1111-1111-1111-111111111111 \
+  --runtime stipul.examples.echo_runtime:build_runtime \
+  --control-port 0
+```
+
+Required arguments:
+
+- `--contract`: Charter policy file, preferably YAML
+- `--session-dir`: session directory that will hold `events.jsonl`
+- `--session-id`: stable session UUID
+- `--runtime`: import path in `module:callable` form returning `{"tool_catalog": ..., "execute_tool": ...}`
+
+Optional arguments:
+
+- `--control-port`: if set, start the existing loopback control sidecar in the same process. Use `0` to auto-select a free local port.
+
+The shipped example runtime is:
+
+- `stipul.examples.echo_runtime:build_runtime`
+
+It exposes one tool:
+
+- `demo.echo`
+
+Its executor is intentionally trivial and deterministic:
+
+- it returns a JSON payload containing `ok`, the invoked `tool_name`, and the provided `inputs`
+
+Operator caveats:
+
+- gateway mode still uses the existing `ProxyServer` and existing Writ/Charter/Chronicle path
+- the sidecar started by `--control-port` is local-only and binds to `127.0.0.1`
+- when the gateway process already holds the session lock, separate CLI commands against the same session directory may fail until that process exits
 
 ## Session Directory
 
@@ -128,7 +202,9 @@ The checked-in helper is `scripts/validate_dist.sh`.
 
 - The proxy proves what it observed and signed at the enforcement boundary.
 - `events.jsonl` is the authoritative source for verify/export flows.
-- `decisions.jsonl` is derived and must match `events.jsonl`.
+- `decisions.jsonl` is derived convenience output, not a verification authority.
+- SIEM JSONL exported with `--siem-out` is a downstream deterministic projection of `events.jsonl`, not a second evidence source.
+- `source_events_sha256` in the SIEM manifest binds the downstream export back to the Chronicle source file.
 - `scan` is heuristic and advisory. It is not a proof of absence.
 - Coverage and bypass-gap claims depend on `wrapper_log.jsonl` when present.
 - Response payloads are not inspected.

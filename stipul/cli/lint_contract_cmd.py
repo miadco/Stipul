@@ -6,16 +6,16 @@ import argparse
 from pathlib import Path
 
 from stipul.cli.io import CLIError
-from stipul.cli.io import read_json, write_json
+from stipul.cli.io import write_json
+from stipul.charter.contract.loader import load_charter
 from stipul.charter.contract.lint import ContractLintResult, lint_contract_payload
-from stipul.charter.contract.schema import Contract
 from stipul.exceptions import ContractValidationError
 
 
 def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     parser = subparsers.add_parser(
         "lint-contract",
-        help="Lint a contract for operator foot-guns",
+        help="Lint a Charter policy for operator foot-guns",
     )
     parser.add_argument("--contract", required=True)
     parser.add_argument("--json-out")
@@ -24,11 +24,8 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
 
 def run(args: argparse.Namespace) -> int:
     try:
-        payload = read_json(Path(args.contract))
-        if not isinstance(payload, dict):
-            raise CLIError(f"Contract JSON must be an object: {args.contract}", exit_code=3)
-        contract = Contract.from_dict(payload)
-        lint_result = lint_contract_payload(payload, contract)
+        loaded = load_charter(Path(args.contract))
+        lint_result = lint_contract_payload(loaded.payload, loaded.contract)
         human_output = _format_human(lint_result)
         print(human_output)
         if args.json_out:

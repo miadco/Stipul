@@ -14,15 +14,13 @@ from stipul.cli.io import CLIError
 from stipul.cli.io import ensure_session_dir, read_json, write_json
 from stipul.exceptions import ContractValidationError
 from stipul.charter.contract.schema import Contract
-from stipul.chronicle.events.decisions import DecisionVerification, generate_decisions
-from stipul.chronicle.events.decisions import verify_decisions as verify_decisions_projection
 from stipul.chronicle.signing.verifier import print_verification_result, verify_chain
 
 
 def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     parser = subparsers.add_parser(
         "verify",
-        help="Verify a signed session and derived decisions projection",
+        help="Verify the authoritative signed events stream for a session",
     )
     parser.add_argument("--session-dir", required=True)
     parser.add_argument("--contract", required=True)
@@ -50,30 +48,7 @@ def _load_public_key(path: Path) -> Ed25519PublicKey:
     return key
 
 
-def _verify_decisions(
-    events_path: Path,
-    decisions_path: Path,
-) -> tuple[DecisionVerification, bool]:
-    if decisions_path.exists():
-        return verify_decisions_projection(events_path, decisions_path), True
-
-    expected = generate_decisions(events_path)
-    return (
-        DecisionVerification(
-            is_valid=False,
-            expected_count=len(expected),
-            actual_count=0,
-            mismatches=[],
-        ),
-        False,
-    )
-
-
-def _build_report(
-    chain_result: Any,
-    decisions_result: DecisionVerification,
-    decisions_file_present: bool,
-) -> dict[str, Any]:
+def _build_report(chain_result: Any) -> dict[str, Any]:
     break_point: dict[str, int] | None = None
     if chain_result.first_failure_sequence_id is not None:
         break_point = {"first_failure_sequence_id": chain_result.first_failure_sequence_id}
@@ -83,11 +58,6 @@ def _build_report(
     return {
         "break_point": break_point,
         "chain_status": chain_result.status,
-        "decisions_actual_count": decisions_result.actual_count,
-        "decisions_expected_count": decisions_result.expected_count,
-        "decisions_file_present": decisions_file_present,
-        "decisions_mismatches": [asdict(mismatch) for mismatch in decisions_result.mismatches],
-        "decisions_valid": decisions_result.is_valid and decisions_file_present,
         "error": chain_result.error,
         "failures": [asdict(failure) for failure in chain_result.failures],
         "first_failure_sequence_id": chain_result.first_failure_sequence_id,
@@ -98,61 +68,23 @@ def _build_report(
     }
 
 
-def _format_decisions_report(
-    decisions_result: DecisionVerification,
-    *,
-    decisions_file_present: bool,
-) -> str:
-    if not decisions_file_present:
-        status = "INVALID (decisions.jsonl missing)"
-    else:
-        status = "VALID" if decisions_result.is_valid else "INVALID"
-
-    lines = [
-        f"Decision projection: {status}",
-        (
-            "Expected decisions: "
-            f"{decisions_result.expected_count} | Actual decisions: {decisions_result.actual_count}"
-        ),
-    ]
-    if decisions_result.mismatches:
-        first = decisions_result.mismatches[0]
-        lines.append(
-            "First mismatch: "
-            f"sequence_id {first.sequence_id}, type {first.mismatch_type}, field {first.field}"
-        )
-    return "\n".join(lines)
-
-
 def run(args: argparse.Namespace) -> int:
     try:
         session_dir = ensure_session_dir(Path(args.session_dir))
         contract = _load_contract(Path(args.contract))
         public_key = _load_public_key(Path(args.public_key))
         events_path = session_dir / "events.jsonl"
-        decisions_path = session_dir / "decisions.jsonl"
 
         chain_result = verify_chain(events_path, public_key, contract)
-        decisions_result, decisions_file_present = _verify_decisions(events_path, decisions_path)
-        report = _build_report(chain_result, decisions_result, decisions_file_present)
-
-        human_output = "\n\n".join(
-            [
-                print_verification_result(chain_result),
-                _format_decisions_report(
-                    decisions_result,
-                    decisions_file_present=decisions_file_present,
-                ),
-            ]
-        )
-        print(human_output)
+        report = _build_report(chain_result)
+        print(print_verification_result(chain_result))
 
         if args.json_out:
             write_json(Path(args.json_out), report, pretty=True, sort_keys=True)
 
         if chain_result.status == "ERROR":
             return 3
-        if chain_result.status == "INTACT" and decisions_file_present and decisions_result.is_valid:
+        if chain_result.status == "INTACT":
             return 0
         return 2
     except CLIError:

@@ -33,6 +33,8 @@ def _reason_code(rule_triggered: str) -> str:
         return "budget_exhausted"
     if rule_triggered == "egress_not_allowed":
         return "not_in_egress_allowlist"
+    if rule_triggered == "not_allowed":
+        return "not_in_contract"
     return rule_triggered
 
 
@@ -86,15 +88,6 @@ def intercept(raw_request: dict[str, Any], contract: Contract) -> InterceptResul
         input_hash = _input_hash(inputs)
     except Exception:
         return _fallback("unknown_tool", _input_hash({}), "malformed_request")
-
-    if tool_name not in contract.allowed_tools:
-        return InterceptResult(
-            tool_name=tool_name,
-            input_hash=input_hash,
-            decision="deny",
-            reason="not_in_contract",
-            risk_class="write",
-        )
 
     state_raw = raw_request.get("state", {})
     if state_raw is None:

@@ -189,6 +189,7 @@ class Contract:
     max_tool_calls: int
     max_net_calls: int
     egress_allowlist: frozenset[str]
+    approval_quorum: int = 1
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Contract:
@@ -248,6 +249,10 @@ class Contract:
         max_net_calls = _parse_positive_int(
             "max_net_calls", _required(data, "max_net_calls")
         )
+        approval_quorum = _parse_positive_int(
+            "approval_quorum",
+            data.get("approval_quorum", 1),
+        )
 
         egress_allowlist = _parse_egress_allowlist(
             _required(data, "egress_allowlist")
@@ -268,6 +273,7 @@ class Contract:
             max_tool_calls=max_tool_calls,
             max_net_calls=max_net_calls,
             egress_allowlist=egress_allowlist,
+            approval_quorum=approval_quorum,
         )
 
     def to_canonical_dict(self) -> dict[str, Any]:
@@ -287,6 +293,7 @@ class Contract:
             },
             "max_tool_calls": self.max_tool_calls,
             "max_net_calls": self.max_net_calls,
+            "approval_quorum": self.approval_quorum,
             "egress_allowlist": sorted(self.egress_allowlist),
         }
 

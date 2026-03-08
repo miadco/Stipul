@@ -7,8 +7,8 @@ from dataclasses import asdict
 from pathlib import Path
 
 from stipul.cli.io import CLIError
-from stipul.cli.io import read_json, write_json
-from stipul.charter.contract.schema import Contract
+from stipul.cli.io import write_json
+from stipul.charter.contract.loader import load_charter
 from stipul.exceptions import ContractValidationError
 from stipul.simulation.simulator import PolicySimulator
 
@@ -16,7 +16,7 @@ from stipul.simulation.simulator import PolicySimulator
 def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     parser = subparsers.add_parser(
         "simulate",
-        help="Replay an events trace against a contract",
+        help="Replay an events trace against a Charter policy",
     )
     parser.add_argument("--events", required=True)
     parser.add_argument("--contract", required=True)
@@ -29,10 +29,7 @@ def run(args: argparse.Namespace) -> int:
         events_path = Path(args.events)
         if not events_path.exists():
             raise CLIError(f"Events file not found: {events_path}", exit_code=3)
-        contract_payload = read_json(Path(args.contract))
-        if not isinstance(contract_payload, dict):
-            raise CLIError(f"Contract JSON must be an object: {args.contract}", exit_code=3)
-        contract = Contract.from_dict(contract_payload)
+        contract = load_charter(Path(args.contract)).contract
         simulator = PolicySimulator()
         summary = simulator.simulate(events_path, contract)
         print(simulator.format_results(summary))

@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from stipul.chronicle.events.decisions import generate_decisions, write_decisions
 from tests.cli_support import create_signed_session, run_cli
 
 
@@ -40,13 +39,13 @@ def test_verify_succeeds_for_intact_chain(tmp_path: Path) -> None:
 
     assert result.returncode == 0
     assert "Chain integrity: INTACT" in result.stdout
-    assert "Decision projection: VALID" in result.stdout
+    assert "Decision projection" not in result.stdout
 
     report = json.loads(report_path.read_text(encoding="utf-8"))
     assert report["chain_status"] == "INTACT"
-    assert report["decisions_valid"] is True
     assert report["signed_event_count"] == 2
     assert report["unsigned_count"] == 0
+    assert "decisions_valid" not in report
 
 
 def test_verify_reports_broken_chain_at_first_failure(tmp_path: Path) -> None:
@@ -54,7 +53,6 @@ def test_verify_reports_broken_chain_at_first_failure(tmp_path: Path) -> None:
     rows = _read_jsonl(artifacts.events_path)
     rows[1]["reason"] = "tampered_without_resign"
     _rewrite_jsonl(artifacts.events_path, rows)
-    write_decisions(generate_decisions(artifacts.events_path), artifacts.decisions_path)
 
     result = run_cli(
         "verify",
@@ -69,7 +67,7 @@ def test_verify_reports_broken_chain_at_first_failure(tmp_path: Path) -> None:
     assert result.returncode == 2
     assert "Chain integrity: BROKEN" in result.stdout
     assert "First failure: sequence_id 2" in result.stdout
-    assert "Decision projection: VALID" in result.stdout
+    assert "Decision projection" not in result.stdout
 
 
 def test_verify_reports_unverifiable_chain(tmp_path: Path) -> None:
@@ -108,7 +106,6 @@ def test_verify_reports_unverifiable_chain(tmp_path: Path) -> None:
     raw_lines = artifacts.events_path.read_text(encoding="utf-8").splitlines()
     raw_lines[1] = "{bad_json"
     artifacts.events_path.write_text("\n".join(raw_lines) + "\n", encoding="utf-8")
-    write_decisions(generate_decisions(artifacts.events_path), artifacts.decisions_path)
 
     result = run_cli(
         "verify",
@@ -123,10 +120,10 @@ def test_verify_reports_unverifiable_chain(tmp_path: Path) -> None:
     assert result.returncode == 2
     assert "Chain integrity: UNVERIFIABLE" in result.stdout
     assert "Chain verifiable up to sequence_id 1." in result.stdout
-    assert "Decision projection: VALID" in result.stdout
+    assert "Decision projection" not in result.stdout
 
 
-def test_verify_fails_when_decisions_file_is_missing(tmp_path: Path) -> None:
+def test_verify_ignores_missing_decisions_file(tmp_path: Path) -> None:
     artifacts = create_signed_session(tmp_path, include_decisions=False)
 
     result = run_cli(
@@ -139,11 +136,12 @@ def test_verify_fails_when_decisions_file_is_missing(tmp_path: Path) -> None:
         str(artifacts.keypair.public_key_path),
     )
 
-    assert result.returncode == 2
-    assert "Decision projection: INVALID (decisions.jsonl missing)" in result.stdout
+    assert result.returncode == 0
+    assert "Chain integrity: INTACT" in result.stdout
+    assert "Decision projection" not in result.stdout
 
 
-def test_verify_reports_tampered_decisions_projection(tmp_path: Path) -> None:
+def test_verify_ignores_tampered_decisions_projection(tmp_path: Path) -> None:
     artifacts = create_signed_session(tmp_path, include_decisions=True)
     decisions = _read_jsonl(artifacts.decisions_path)
     decisions[0]["reason"] = "tampered"
@@ -159,7 +157,6 @@ def test_verify_reports_tampered_decisions_projection(tmp_path: Path) -> None:
         str(artifacts.keypair.public_key_path),
     )
 
-    assert result.returncode == 2
+    assert result.returncode == 0
     assert "Chain integrity: INTACT" in result.stdout
-    assert "Decision projection: INVALID" in result.stdout
-    assert "First mismatch: sequence_id 1" in result.stdout
+    assert "Decision projection" not in result.stdout

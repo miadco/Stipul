@@ -138,6 +138,54 @@ def test_proxy_second_instance_same_state_dir_rejected(
         proxy.close()
 
 
+def test_kill_switch_persists_and_reloads_in_same_state_dir(tmp_path: Path, contract) -> None:
+    first_proxy = ProxyServer(
+        contract=contract,
+        event_logger=_build_logger(tmp_path, contract),
+        session_id=_SESSION_ID,
+        state_dir=tmp_path,
+    )
+    first_proxy.set_kill_switch(
+        True,
+        updated_by="e" * 64,
+        reason="operator_kill_switch_enabled",
+    )
+
+    persisted_state = json.loads((tmp_path / "operator_state.json").read_text(encoding="utf-8"))
+    assert persisted_state["kill_switch_active"] is True
+    assert persisted_state["reason"] == "operator_kill_switch_enabled"
+
+    reloaded_proxy = ProxyServer(
+        contract=contract,
+        event_logger=_build_logger(tmp_path, contract),
+        session_id=_SESSION_ID,
+        state_dir=tmp_path,
+    )
+
+    payload = reloaded_proxy.health.payload()
+    assert payload["kill_switch_active"] is True
+    assert payload["operator_reason"] == "operator_kill_switch_enabled"
+    assert isinstance(payload["operator_updated_at"], str)
+
+    called = {"count": 0}
+
+    def forward_call(_request):
+        called["count"] += 1
+        return {"ok": True}
+
+    response = reloaded_proxy.handle_tool_call(
+        {"tool_name": "filesystem.write", "inputs": {"path": "out.txt", "content": "x"}},
+        forward_call,
+    )
+
+    assert response == {
+        "decision": "deny",
+        "reason": "kill_switch_active",
+        "tool_name": "filesystem.write",
+    }
+    assert called["count"] == 0
+
+
 def test_prev_unsigned_terminal_hash_present_on_genesis_when_unsigned_exists(
     tmp_path: Path, contract
 ) -> None:

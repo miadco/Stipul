@@ -5,12 +5,12 @@ from __future__ import annotations
 import argparse
 import base64
 import json
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass, field, replace
+from datetime import datetime, timedelta, timezone
 import hashlib
 import logging
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import TYPE_CHECKING, Any, Callable, Mapping
 
 from stipul.charter.budget import (
     BudgetTracker,
@@ -19,6 +19,11 @@ from stipul.charter.budget import (
     load_budget_state,
     save_budget_state,
 )
+from stipul.charter.delegation import (
+    DEFAULT_MAX_DELEGATION_CHAIN_DEPTH,
+    DelegationManager,
+)
+from stipul.charter.contract.loader import load_charter
 from stipul.writ.breakglass import BreakGlassEvent, BreakGlassManager
 from stipul.charter.contract.schema import Contract
 from stipul.charter.contract.utils import compute_contract_hash
@@ -28,9 +33,19 @@ from stipul.chronicle.events.store import EventStore
 from stipul.chronicle.events.summary import SessionSummary
 from stipul.health.endpoint import HealthEndpoint
 from stipul.charter.permits import ExceptionPermit, PermitManager, load_permit_secret
+from stipul.writ.proxy.approval_state import (
+    ApprovalRecord,
+    ApprovalRequest,
+    ApprovalState,
+    ApprovalStateError,
+    load_approval_state,
+    save_approval_state,
+)
 from stipul.writ.proxy.circuit_breaker import CircuitBreaker
 from stipul.writ.proxy.egress import check_egress
 from stipul.writ.proxy.interceptor import InterceptResult, intercept
+from stipul.writ.proxy.operator_state import OperatorState, OperatorStateError
+from stipul.writ.proxy.operator_state import load_operator_state, save_operator_state
 from stipul.writ.proxy.session import SessionState
 from stipul.writ.proxy.session_lock import FileLock, acquire_session_lock, release_session_lock
 from stipul.writ.proxy.startup import check_secret_isolation
@@ -39,6 +54,12 @@ from stipul.charter.token.mint import mint_token
 from stipul.utils.canonical import canonical_json_bytes, compute_prev_hash
 
 _LOGGER = logging.getLogger(__name__)
+_NO_OVERRIDE = object()
+_APPROVAL_REQUEST_TTL_SECONDS = 300
+
+if TYPE_CHECKING:
+    from stipul.writ.proxy.control_sidecar import ControlSidecar
+    from stipul.writ.proxy.mcp_gateway import MCPGateway
 
 
 def _now_iso_utc() -> str:
@@ -77,9 +98,95 @@ def _input_hash(raw_request: Mapping[str, Any]) -> str:
     return hashlib.sha256(canonical_json_bytes(_safe_inputs(raw_request))).hexdigest()
 
 
+def _request_metadata(raw_request: Mapping[str, Any]) -> dict[str, Any] | None:
+    metadata = raw_request.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    return dict(metadata)
+
+
+def _merge_metadata(
+    base: dict[str, Any] | None,
+    extra: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    merged: dict[str, Any] = {}
+    if base is not None:
+        merged.update(base)
+    if extra is not None:
+        merged.update(extra)
+    return merged or None
+
+
 def _agent_identity_hash(agent_id: str, code_sha256: str | None) -> str:
     payload = {"agent_id": agent_id, "code_sha256": code_sha256}
     return hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def _requester_hex64(agent_id: str) -> str:
+    return hashlib.sha256(agent_id.encode("utf-8")).hexdigest()
+
+
+def _approval_request_id(payload: Mapping[str, Any]) -> str:
+    return hashlib.sha256(canonical_json_bytes(dict(payload))).hexdigest()
+
+
+def _approval_context(request: ApprovalRequest) -> dict[str, Any]:
+    context: dict[str, Any] = {
+        "request_id": request.request_id,
+        "status": request.status,
+        "required_approver_count": request.required_approver_count,
+        "approval_count": len(request.approvals),
+        "approver_ids": [approval.approved_by for approval in request.approvals],
+        "tool_name": request.tool_name,
+        "input_hash": request.input_hash,
+        "expires_at": request.expires_at,
+    }
+    if request.egress_target is not None:
+        context["egress_target"] = request.egress_target
+    if request.derived_permit is not None:
+        permit_id = request.derived_permit.get("permit_id")
+        if isinstance(permit_id, str) and permit_id:
+            context["derived_permit_id"] = permit_id
+    return {"approval_context": context}
+
+
+def _permit_to_dict(permit: ExceptionPermit) -> dict[str, Any]:
+    return {
+        "permit_id": permit.permit_id,
+        "request_id": permit.request_id,
+        "approved_by": permit.approved_by,
+        "approved_at": permit.approved_at,
+        "contract_id": permit.contract_id,
+        "contract_hash": permit.contract_hash,
+        "session_id": permit.session_id,
+        "granted_tools": list(permit.granted_tools),
+        "granted_destinations": list(permit.granted_destinations),
+        "granted_ttl": permit.granted_ttl,
+        "expires_at": permit.expires_at,
+        "signature": permit.signature,
+    }
+
+
+def _permit_from_dict(payload: Mapping[str, Any] | None) -> ExceptionPermit | None:
+    if not isinstance(payload, Mapping):
+        return None
+    try:
+        return ExceptionPermit(
+            permit_id=str(payload["permit_id"]),
+            request_id=str(payload["request_id"]),
+            approved_by=str(payload["approved_by"]),
+            approved_at=str(payload["approved_at"]),
+            contract_id=str(payload["contract_id"]),
+            contract_hash=str(payload["contract_hash"]),
+            session_id=str(payload["session_id"]),
+            granted_tools=tuple(str(item) for item in payload["granted_tools"]),
+            granted_destinations=tuple(str(item) for item in payload["granted_destinations"]),
+            granted_ttl=int(payload["granted_ttl"]),
+            expires_at=str(payload["expires_at"]),
+            signature=str(payload["signature"]),
+        )
+    except Exception:
+        return None
 
 
 def _extract_egress_target(raw_request: Mapping[str, Any]) -> str | None:
@@ -200,6 +307,8 @@ class ProxyServer:
     decay_detector: DecayDetector | None = None
     active_permits: list[ExceptionPermit] = field(default_factory=list)
     active_breakglass: BreakGlassEvent | None = None
+    max_delegation_chain_depth: int = DEFAULT_MAX_DELEGATION_CHAIN_DEPTH
+    _control_sidecar: ControlSidecar | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self._tool_calls_made = 0
@@ -226,14 +335,46 @@ class ProxyServer:
         if self.active_permits:
             self._permit_secret = load_permit_secret()
 
+        self._refresh_operator_state()
+        if self.max_delegation_chain_depth <= 0:
+            raise ValueError("max_delegation_chain_depth must be > 0")
+
         if self.passthrough:
             print("⚠ PASSTHROUGH MODE — enforcement disabled")
 
     def close(self) -> None:
+        self.stop_control_sidecar()
         if self.session_lock is None:
             return
         release_session_lock(self.session_lock)
         self.session_lock = None
+
+    def start_control_sidecar(self, *, port: int = 0) -> str:
+        if self._control_sidecar is None:
+            from stipul.writ.proxy.control_sidecar import ControlSidecar
+
+            self._control_sidecar = ControlSidecar(self)
+        return self._control_sidecar.start(port=port)
+
+    def stop_control_sidecar(self) -> None:
+        if self._control_sidecar is None:
+            return
+        self._control_sidecar.stop()
+        self._control_sidecar = None
+
+    def create_mcp_gateway(
+        self,
+        *,
+        tool_catalog: Callable[[], list[Any]] | list[Any],
+        execute_tool: Callable[[Mapping[str, Any]], Any],
+    ) -> MCPGateway:
+        from stipul.writ.proxy.mcp_gateway import MCPGateway
+
+        return MCPGateway(
+            proxy=self,
+            tool_catalog=tool_catalog,
+            execute_tool=execute_tool,
+        )
 
     def __del__(self) -> None:  # pragma: no cover - best-effort cleanup
         try:
@@ -303,14 +444,16 @@ class ProxyServer:
                     "reason": gap_payload["reason"],
                     "metadata": gap_payload["metadata"],
                 }
-                self.event_logger.log_event(
-                    {
-                        **gap_payload,
-                        "agent_identity": self._agent_identity_hash,
-                        "input_hash": hashlib.sha256(
-                            canonical_json_bytes(gap_hash_payload)
-                        ).hexdigest(),
-                    }
+                self._log_decision(
+                    event_type=str(gap_payload["event_type"]),
+                    tool_name=str(gap_payload["tool_name"]),
+                    risk_class=str(gap_payload["risk_class"]),
+                    decision=str(gap_payload["decision"]),
+                    reason=str(gap_payload["reason"]),
+                    input_hash=hashlib.sha256(
+                        canonical_json_bytes(gap_hash_payload)
+                    ).hexdigest(),
+                    metadata=gap_payload.get("metadata"),
                 )
 
         summary = build_summary(
@@ -414,18 +557,16 @@ class ProxyServer:
         self.health.set_circuit_open(reason == "circuit_breaker_open")
         decision = "deny" if reason == "circuit_breaker_open" else "allow"
         try:
-            event = self.event_logger.log_event(
-                {
-                    "event_type": "elev_op",
-                    "tool_name": "__proxy__",
-                    "risk_class": "write",
-                    "decision": decision,
-                    "reason": reason,
-                    "agent_identity": self._agent_identity_hash,
-                    "input_hash": hashlib.sha256(canonical_json_bytes({"reason": reason})).hexdigest(),
-                }
+            self._log_decision(
+                event_type="elev_op",
+                tool_name="__proxy__",
+                risk_class="write",
+                decision=decision,
+                reason=reason,
+                input_hash=hashlib.sha256(
+                    canonical_json_bytes({"reason": reason})
+                ).hexdigest(),
             )
-            self.health.update_last_event_timestamp(event.timestamp)
         except Exception as exc:
             # Health/circuit transitions should not crash request handling.
             _LOGGER.debug("Failed to log circuit state change event", exc_info=exc)
@@ -439,23 +580,333 @@ class ProxyServer:
         decision: str,
         reason: str,
         input_hash: str,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
-        event = self.event_logger.log_event(
-            {
-                "event_type": event_type,
-                "tool_name": tool_name,
-                "risk_class": _risk_to_wire(risk_class),
-                "decision": decision,
-                "reason": reason,
-                "agent_identity": self._agent_identity_hash,
-                "input_hash": input_hash,
-            }
+        event = self.event_logger.log_decision_event(
+            event_type=event_type,
+            tool_name=tool_name,
+            risk_class=_risk_to_wire(risk_class),
+            decision=decision,
+            reason=reason,
+            agent_identity=self._agent_identity_hash,
+            input_hash=input_hash,
+            metadata=metadata,
         )
         self.health.update_last_event_timestamp(event.timestamp)
 
     def _approval_prompt(self, tool_name: str) -> bool:
         reply = input(f"Approve tool '{tool_name}'? [y/N]: ").strip().lower()
         return reply in {"y", "yes"}
+
+    def _approval_state_dir(self) -> Path:
+        return Path(self.state_dir or self.event_logger.store.path.parent)
+
+    def _permit_manager(self) -> PermitManager:
+        if self._permit_secret is None:
+            self._permit_secret = load_permit_secret()
+        return PermitManager(
+            contract=self.contract,
+            secret=self._permit_secret,
+            session_id=self.session_id,
+        )
+
+    def _approval_request_ttl(self, current_time: datetime) -> int:
+        remaining = int((self.contract.expires_at - current_time).total_seconds())
+        if remaining <= 0:
+            return 0
+        return min(_APPROVAL_REQUEST_TTL_SECONDS, remaining)
+
+    def _approval_binding(
+        self,
+        *,
+        tool_name: str,
+        input_hash: str,
+        egress_target: str | None,
+        requesting_agent_id: str,
+    ) -> dict[str, Any]:
+        return {
+            "tool_name": tool_name,
+            "input_hash": input_hash,
+            "egress_target": egress_target,
+            "requesting_agent_id": requesting_agent_id,
+            "session_id": self.session_id,
+            "contract_id": self.contract.contract_id,
+            "contract_hash": self._contract_hash,
+        }
+
+    def _approval_request_summary(self, request: ApprovalRequest) -> dict[str, Any]:
+        return {
+            "request_id": request.request_id,
+            "status": request.status,
+            "tool_name": request.tool_name,
+            "input_hash": request.input_hash,
+            "egress_target": request.egress_target,
+            "requesting_agent_id": request.requesting_agent_id,
+            "required_approver_count": request.required_approver_count,
+            "approval_count": len(request.approvals),
+            "approver_ids": [approval.approved_by for approval in request.approvals],
+            "expires_at": request.expires_at,
+            "derived_permit_id": (
+                request.derived_permit.get("permit_id")
+                if request.derived_permit is not None
+                else None
+            ),
+        }
+
+    def _log_approval_lifecycle_event(self, reason: str, request: ApprovalRequest) -> None:
+        payload = {
+            "reason": reason,
+            "request_id": request.request_id,
+            "approval_count": len(request.approvals),
+            "status": request.status,
+        }
+        self._log_decision(
+            event_type="elev_op",
+            tool_name=request.tool_name,
+            risk_class="write",
+            decision="allow",
+            reason=reason,
+            input_hash=hashlib.sha256(canonical_json_bytes(payload)).hexdigest(),
+            metadata=_approval_context(request),
+        )
+
+    def _expire_approval_requests(
+        self,
+        state: ApprovalState,
+        *,
+        current_time: datetime,
+    ) -> tuple[ApprovalState, list[ApprovalRequest]]:
+        expired: list[ApprovalRequest] = []
+        updated_requests = dict(state.requests)
+        for request_id, request in state.requests.items():
+            if request.status == "expired":
+                continue
+            expires_at = datetime.fromisoformat(request.expires_at[:-1] + "+00:00")
+            if current_time < expires_at:
+                continue
+            expired_request = replace(
+                request,
+                status="expired",
+                derived_permit=None,
+            )
+            updated_requests[request_id] = expired_request
+            expired.append(expired_request)
+        if not expired:
+            return state, []
+        return ApprovalState(requests=updated_requests), expired
+
+    def _load_approval_state(self, *, current_time: datetime) -> ApprovalState:
+        state = load_approval_state(self._approval_state_dir())
+        state, expired_requests = self._expire_approval_requests(state, current_time=current_time)
+        if expired_requests:
+            save_approval_state(self._approval_state_dir(), state)
+            for request in expired_requests:
+                self._log_approval_lifecycle_event("approval_request_expired", request)
+        return state
+
+    def _save_approval_state(self, state: ApprovalState) -> ApprovalState:
+        return save_approval_state(self._approval_state_dir(), state)
+
+    def _create_pending_approval_request(
+        self,
+        *,
+        tool_name: str,
+        input_hash: str,
+        egress_target: str | None,
+        requesting_agent_id: str,
+        current_time: datetime,
+    ) -> ApprovalRequest:
+        ttl = self._approval_request_ttl(current_time)
+        if ttl <= 0:
+            raise ValueError("contract is already expired at approval request time")
+        binding = self._approval_binding(
+            tool_name=tool_name,
+            input_hash=input_hash,
+            egress_target=egress_target,
+            requesting_agent_id=requesting_agent_id,
+        )
+        return ApprovalRequest(
+            request_id=_approval_request_id(binding),
+            status="pending",
+            tool_name=tool_name,
+            input_hash=input_hash,
+            egress_target=egress_target,
+            requesting_agent_id=requesting_agent_id,
+            session_id=self.session_id,
+            contract_id=self.contract.contract_id,
+            contract_hash=self._contract_hash,
+            required_approver_count=self.contract.approval_quorum,
+            approvals=(),
+            expires_at=(current_time.replace(microsecond=0) + timedelta(seconds=ttl))
+            .isoformat()
+            .replace("+00:00", "Z"),
+            derived_permit=None,
+        )
+
+    def _ensure_approval_request(
+        self,
+        *,
+        tool_name: str,
+        input_hash: str,
+        egress_target: str | None,
+        requesting_agent_id: str,
+        current_time: datetime,
+    ) -> ApprovalRequest:
+        state = self._load_approval_state(current_time=current_time)
+        request = self._create_pending_approval_request(
+            tool_name=tool_name,
+            input_hash=input_hash,
+            egress_target=egress_target,
+            requesting_agent_id=requesting_agent_id,
+            current_time=current_time,
+        )
+        existing = state.requests.get(request.request_id)
+        if existing is not None and existing.status != "expired":
+            return existing
+        updated_state = ApprovalState(
+            requests={**state.requests, request.request_id: request},
+        )
+        self._save_approval_state(updated_state)
+        self._log_approval_lifecycle_event("approval_request_created", request)
+        return request
+
+    def approval_status(self, request_id: str | None = None) -> dict[str, Any]:
+        state = self._load_approval_state(current_time=datetime.now(timezone.utc))
+        if request_id is not None:
+            request = state.requests.get(request_id)
+            if request is None:
+                raise ValueError(f"approval request not found: {request_id}")
+            requests = [request]
+        else:
+            requests = [state.requests[key] for key in sorted(state.requests)]
+        return {
+            "request_count": len(requests),
+            "requests": [self._approval_request_summary(request) for request in requests],
+        }
+
+    def approve_approval_request(self, request_id: str, approved_by: str) -> dict[str, Any]:
+        if (
+            not isinstance(approved_by, str)
+            or len(approved_by) != 64
+            or any(ch not in "0123456789abcdefABCDEF" for ch in approved_by)
+        ):
+            raise ValueError("approved_by must be a 64-character hexadecimal string")
+        current_time = datetime.now(timezone.utc)
+        state = self._load_approval_state(current_time=current_time)
+        request = state.requests.get(request_id)
+        if request is None:
+            raise ValueError(f"approval request not found: {request_id}")
+        if request.status == "expired":
+            raise ValueError("approval request expired")
+
+        updated_request = request
+        if all(approval.approved_by != approved_by for approval in request.approvals):
+            updated_request = replace(
+                request,
+                approvals=request.approvals
+                + (
+                    ApprovalRecord(
+                        approved_by=approved_by,
+                        approved_at=current_time.isoformat().replace("+00:00", "Z"),
+                    ),
+                ),
+            )
+
+        if (
+            len(updated_request.approvals) >= updated_request.required_approver_count
+            and updated_request.derived_permit is None
+        ):
+            permit_manager = self._permit_manager()
+            remaining_ttl = int(
+                (
+                    datetime.fromisoformat(updated_request.expires_at[:-1] + "+00:00")
+                    - current_time
+                ).total_seconds()
+            )
+            if remaining_ttl <= 0:
+                updated_request = replace(updated_request, status="expired", derived_permit=None)
+            else:
+                requester_hex64 = _requester_hex64(updated_request.requesting_agent_id)
+                permit_request = permit_manager.create_request(
+                    requested_by_hex64=requester_hex64,
+                    permitted_tools=[updated_request.tool_name],
+                    permitted_destinations=(
+                        [updated_request.egress_target]
+                        if updated_request.egress_target is not None
+                        else []
+                    ),
+                    reason="Approval quorum satisfied",
+                    requested_ttl=remaining_ttl,
+                    session_id=self.session_id,
+                    requested_at=current_time,
+                )
+                permit = permit_manager.approve_request(
+                    permit_request,
+                    approved_by_hex64=approved_by,
+                    granted_ttl=remaining_ttl,
+                    approved_at=current_time,
+                )
+                updated_request = replace(
+                    updated_request,
+                    status="approved",
+                    derived_permit=_permit_to_dict(permit),
+                )
+
+        updated_state = ApprovalState(
+            requests={**state.requests, request_id: updated_request},
+        )
+        self._save_approval_state(updated_state)
+        if updated_request.status == "expired" and request.status != "expired":
+            self._log_approval_lifecycle_event("approval_request_expired", updated_request)
+        elif len(updated_request.approvals) > len(request.approvals):
+            self._log_approval_lifecycle_event("approval_added", updated_request)
+        return self._approval_request_summary(updated_request)
+
+    def _operator_state_dir(self) -> Path:
+        return Path(self.state_dir or self.event_logger.store.path.parent)
+
+    def _refresh_operator_state(self) -> OperatorState | None:
+        state = load_operator_state(self._operator_state_dir())
+        if state is None:
+            self.health.update_operator_status(
+                kill_switch_active=False,
+                updated_at=None,
+                updated_by=None,
+                reason=None,
+            )
+            return None
+
+        self.health.update_operator_status(
+            kill_switch_active=state.kill_switch_active,
+            updated_at=state.updated_at,
+            updated_by=state.updated_by,
+            reason=state.reason,
+        )
+        return state
+
+    def set_kill_switch(self, active: bool, updated_by: str, reason: str) -> None:
+        state = save_operator_state(
+            self._operator_state_dir(),
+            kill_switch_active=active,
+            updated_by=updated_by,
+            reason=reason,
+        )
+        self.health.update_operator_status(
+            kill_switch_active=state.kill_switch_active,
+            updated_at=state.updated_at,
+            updated_by=state.updated_by,
+            reason=state.reason,
+        )
+        payload = state.to_dict()
+        self._log_decision(
+            event_type="elev_op",
+            tool_name="__operator__",
+            risk_class="write",
+            decision="allow",
+            reason=reason,
+            input_hash=hashlib.sha256(canonical_json_bytes(payload)).hexdigest(),
+            metadata=payload,
+        )
 
     def _save_budget_state(self) -> None:
         if self.budget_tracker is None:
@@ -466,59 +917,71 @@ class ProxyServer:
             self.session_id,
         )
 
-    def _emit_budget_exhausted_event(self, *, input_hash: str) -> None:
+    def _emit_budget_exhausted_event(
+        self,
+        *,
+        input_hash: str,
+        request_metadata: dict[str, Any] | None = None,
+    ) -> None:
         if self.budget_tracker is None:
             return
-        event = self.event_logger.log_event(
-            {
-                "event_type": "budget_exhausted",
-                "tool_name": "__budget__",
-                "risk_class": "write",
-                "decision": "deny",
-                "reason": "budget_exhausted",
-                "agent_identity": self._agent_identity_hash,
-                "input_hash": input_hash,
-                "metadata": {
-                    "max_tool_calls": self.budget_tracker.max_tool_calls,
-                    "max_net_calls": self.budget_tracker.max_net_calls,
-                    "tool_calls_used": self.budget_tracker.tool_calls_used,
-                    "net_calls_used": self.budget_tracker.net_calls_used,
-                    "exhausted_dimension": self.budget_tracker.exhausted_dimension,
-                    "exhausted_at": self.budget_tracker.exhausted_at,
-                },
-            }
+        self._log_decision(
+            event_type="budget_exhausted",
+            tool_name="__budget__",
+            risk_class="write",
+            decision="deny",
+            reason="budget_exhausted",
+            input_hash=input_hash,
+            metadata=_merge_metadata(request_metadata, {
+                "max_tool_calls": self.budget_tracker.max_tool_calls,
+                "max_net_calls": self.budget_tracker.max_net_calls,
+                "tool_calls_used": self.budget_tracker.tool_calls_used,
+                "net_calls_used": self.budget_tracker.net_calls_used,
+                "exhausted_dimension": self.budget_tracker.exhausted_dimension,
+                "exhausted_at": self.budget_tracker.exhausted_at,
+            }),
         )
-        self.health.update_last_event_timestamp(event.timestamp)
 
-    def _emit_budget_anomaly_event(self, *, anomaly: DecayAnomaly, input_hash: str) -> None:
-        event = self.event_logger.log_event(
-            {
-                "event_type": "budget_anomaly",
-                "tool_name": "__budget__",
-                "risk_class": "write",
-                "decision": "allow",
-                "reason": "budget_anomaly",
-                "agent_identity": self._agent_identity_hash,
-                "input_hash": input_hash,
-                "metadata": {
-                    "dimension": anomaly.dimension,
-                    "spend_fraction": anomaly.spend_fraction,
-                    "time_fraction": anomaly.time_fraction,
-                    "burn_rate": anomaly.burn_rate,
-                    "projected_exhaustion_seconds": anomaly.projected_exhaustion_seconds,
-                },
-            }
+    def _emit_budget_anomaly_event(
+        self,
+        *,
+        anomaly: DecayAnomaly,
+        input_hash: str,
+        request_metadata: dict[str, Any] | None = None,
+    ) -> None:
+        metadata = {
+            "dimension": anomaly.dimension,
+            "spend_fraction": anomaly.spend_fraction,
+            "time_fraction": anomaly.time_fraction,
+            "burn_rate": anomaly.burn_rate,
+            "projected_exhaustion_seconds": anomaly.projected_exhaustion_seconds,
+        }
+        if self.decay_detector is not None:
+            metadata.update(self.decay_detector.to_event_payload(anomaly))
+
+        self._log_decision(
+            event_type="budget_anomaly",
+            tool_name="__budget__",
+            risk_class="write",
+            decision="allow",
+            reason="budget_anomaly",
+            input_hash=input_hash,
+            metadata=_merge_metadata(request_metadata, metadata),
         )
-        self.health.update_last_event_timestamp(event.timestamp)
 
-    def _intercept_request(self, raw_request: Mapping[str, Any]) -> dict[str, Any]:
+    def _intercept_request(
+        self,
+        raw_request: Mapping[str, Any],
+        *,
+        requesting_agent_id: str | None = None,
+    ) -> dict[str, Any]:
         egress_target = _extract_egress_target(raw_request)
         current_time = _now_iso_utc()
         state = {
             "tool_calls_made": self._tool_calls_made,
             "net_calls_made": self._net_calls_made,
             "current_time": current_time,
-            "requesting_agent_id": self._agent_id,
+            "requesting_agent_id": requesting_agent_id or self._agent_id,
             "requesting_code_sha256": self.requesting_code_sha256,
             "egress_target": egress_target,
         }
@@ -533,19 +996,74 @@ class ProxyServer:
         input_hash: str,
         metadata: dict[str, Any],
     ) -> None:
-        event = self.event_logger.log_event(
-            {
-                "event_type": "elev_op",
-                "tool_name": tool_name,
-                "risk_class": risk_class,
-                "decision": "allow",
-                "reason": reason,
-                "agent_identity": self._agent_identity_hash,
-                "input_hash": input_hash,
-                "metadata": metadata,
-            }
+        self._log_decision(
+            event_type="elev_op",
+            tool_name=tool_name,
+            risk_class=risk_class,
+            decision="allow",
+            reason=reason,
+            input_hash=input_hash,
+            metadata=metadata,
         )
-        self.health.update_last_event_timestamp(event.timestamp)
+
+    def _try_forward_with_permit(
+        self,
+        permit: ExceptionPermit,
+        raw_request: Mapping[str, Any],
+        forward_call: Callable[[Mapping[str, Any]], Any],
+        *,
+        tool_name: str,
+        risk_class: str,
+        reason: str,
+        input_hash: str,
+        egress_target: str | None,
+        request_metadata: dict[str, Any] | None,
+        extra_metadata: dict[str, Any] | None = None,
+    ) -> Any:
+        permit_manager = self._permit_manager()
+        validation = permit_manager.validate_permit(
+            permit,
+            current_time=datetime.now(timezone.utc),
+            contract_id=self.contract.contract_id,
+            contract_hash=self._contract_hash,
+            session_id=self.session_id,
+        )
+        if not validation.valid:
+            _LOGGER.warning(
+                "Permit %s rejected during evaluation: %s",
+                permit.permit_id,
+                validation.reason,
+            )
+            return _NO_OVERRIDE
+        if tool_name in self.contract.never_allow_tools:
+            return _NO_OVERRIDE
+        if tool_name not in permit.granted_tools:
+            return _NO_OVERRIDE
+        if egress_target is not None:
+            if not permit.granted_destinations or egress_target not in permit.granted_destinations:
+                return _NO_OVERRIDE
+
+        override_metadata = {
+            "override_type": "permit",
+            "permit_id": permit.permit_id,
+            "request_id": permit.request_id,
+            "approved_by": permit.approved_by,
+            "approved_at": permit.approved_at,
+            "expires_at": permit.expires_at,
+        }
+        if extra_metadata is not None:
+            override_metadata.update(extra_metadata)
+        return self._forward_allowed_tool_call(
+            raw_request,
+            forward_call,
+            tool_name=tool_name,
+            risk_class=risk_class,
+            reason=reason,
+            input_hash=input_hash,
+            egress_target=egress_target,
+            override_metadata=override_metadata,
+            request_metadata=request_metadata,
+        )
 
     def _forward_allowed_tool_call(
         self,
@@ -558,6 +1076,7 @@ class ProxyServer:
         input_hash: str,
         egress_target: str | None,
         override_metadata: dict[str, Any] | None = None,
+        request_metadata: dict[str, Any] | None = None,
     ) -> Any:
         if override_metadata is not None:
             self._emit_override_event(
@@ -565,7 +1084,7 @@ class ProxyServer:
                 risk_class=risk_class,
                 reason=reason,
                 input_hash=input_hash,
-                metadata=override_metadata,
+                metadata=_merge_metadata(request_metadata, override_metadata),
             )
         token = mint_token(
             tool_name=tool_name,
@@ -575,7 +1094,6 @@ class ProxyServer:
             contract_id=self.contract.contract_id,
         )
         forwarded_request = _merge_headers(raw_request, token)
-        response = forward_call(forwarded_request)
         self._log_decision(
             event_type="tool_call",
             tool_name=tool_name,
@@ -583,11 +1101,12 @@ class ProxyServer:
             decision="allow",
             reason=reason,
             input_hash=input_hash,
+            metadata=request_metadata,
         )
         self._tool_calls_made += 1
         if egress_target is not None:
             self._net_calls_made += 1
-        return response
+        return forward_call(forwarded_request)
 
     def handle_tool_call(
         self,
@@ -598,6 +1117,119 @@ class ProxyServer:
         tool_name = _safe_tool_name(raw_request)
         input_hash = _input_hash(raw_request)
         egress_target = _extract_egress_target(raw_request)
+        risk_hint = self.contract.tool_risk_classes.get(tool_name)
+        risk_hint_wire = _risk_to_wire(risk_hint.value if risk_hint else "write")
+        request_metadata = _request_metadata(raw_request)
+        effective_requesting_agent_id = self._agent_id
+
+        try:
+            operator_state = self._refresh_operator_state()
+        except OperatorStateError as exc:
+            _LOGGER.error("Operator state is unreadable; denying call", exc_info=exc)
+            self.health.set_degraded(True)
+            self._log_decision(
+                event_type="tool_call",
+                tool_name=tool_name,
+                risk_class=risk_hint_wire,
+                decision="deny",
+                reason="proxy_degraded",
+                input_hash=input_hash,
+                metadata=request_metadata,
+            )
+            return _structured_error("proxy_degraded", tool_name)
+
+        if operator_state is not None and operator_state.kill_switch_active:
+            self._log_decision(
+                event_type="tool_call",
+                tool_name=tool_name,
+                risk_class=risk_hint_wire,
+                decision="deny",
+                reason="kill_switch_active",
+                input_hash=input_hash,
+                metadata=_merge_metadata(request_metadata, {
+                    "kill_switch_active": True,
+                    "operator_reason": operator_state.reason,
+                    "operator_updated_at": operator_state.updated_at,
+                    "operator_updated_by": operator_state.updated_by,
+                }),
+            )
+            return _structured_error("kill_switch_active", tool_name)
+
+        try:
+            self._load_approval_state(current_time=datetime.now(timezone.utc))
+        except ApprovalStateError as exc:
+            _LOGGER.error("Approval state is unreadable; denying call", exc_info=exc)
+            self.health.set_degraded(True)
+            self._log_decision(
+                event_type="tool_call",
+                tool_name=tool_name,
+                risk_class=risk_hint_wire,
+                decision="deny",
+                reason="proxy_degraded",
+                input_hash=input_hash,
+                metadata=request_metadata,
+            )
+            return _structured_error("proxy_degraded", tool_name)
+
+        delegation_chain = raw_request.get("delegation_chain")
+        if delegation_chain is not None:
+            try:
+                delegation_manager = DelegationManager.from_env(
+                    self.contract,
+                    self.session_id,
+                    max_chain_depth=self.max_delegation_chain_depth,
+                )
+                delegation_validation = delegation_manager.validate_chain(
+                    delegation_chain,
+                    current_time=datetime.now(timezone.utc),
+                    contract_id=self.contract.contract_id,
+                    contract_hash=self._contract_hash,
+                    session_id=self.session_id,
+                    expected_delegated_actor=self._agent_id,
+                    tool_name=tool_name,
+                    egress_target=egress_target,
+                )
+            except ValueError as exc:
+                _LOGGER.error("Delegation validation unavailable; denying call", exc_info=exc)
+                delegation_validation = None
+                delegation_metadata = {
+                    "delegation_context": {
+                        "chain_depth": (
+                            len(delegation_chain)
+                            if isinstance(delegation_chain, (list, tuple))
+                            else 0
+                        ),
+                        "delegated_actor": self._agent_id,
+                        "validation_reason": "delegation_unavailable",
+                    }
+                }
+                self._log_decision(
+                    event_type="tool_call",
+                    tool_name=tool_name,
+                    risk_class=risk_hint_wire,
+                    decision="deny",
+                    reason="delegation_unavailable",
+                    input_hash=input_hash,
+                    metadata=_merge_metadata(request_metadata, delegation_metadata),
+                )
+                return _structured_error("delegation_unavailable", tool_name)
+
+            delegation_metadata = delegation_validation.as_metadata()
+            request_metadata = _merge_metadata(request_metadata, delegation_metadata)
+            if not delegation_validation.valid:
+                self._log_decision(
+                    event_type="tool_call",
+                    tool_name=tool_name,
+                    risk_class=risk_hint_wire,
+                    decision="deny",
+                    reason=delegation_validation.reason,
+                    input_hash=input_hash,
+                    metadata=request_metadata,
+                )
+                return _structured_error(delegation_validation.reason, tool_name)
+
+            if delegation_validation.parent_actor is not None:
+                effective_requesting_agent_id = delegation_validation.parent_actor
 
         if self.passthrough:
             self._log_decision(
@@ -607,6 +1239,7 @@ class ProxyServer:
                 decision="allow",
                 reason="passthrough",
                 input_hash=input_hash,
+                metadata=request_metadata,
             )
             response = forward_call(raw_request)
             self._tool_calls_made += 1
@@ -623,6 +1256,7 @@ class ProxyServer:
                 decision="deny",
                 reason="proxy_degraded",
                 input_hash=input_hash,
+                metadata=request_metadata,
             )
             return _structured_error("proxy_degraded", tool_name)
 
@@ -634,7 +1268,10 @@ class ProxyServer:
             if budget_result.allowed:
                 continue
             if budget_result.first_exhaustion:
-                self._emit_budget_exhausted_event(input_hash=input_hash)
+                self._emit_budget_exhausted_event(
+                    input_hash=input_hash,
+                    request_metadata=request_metadata,
+                )
                 self._save_budget_state()
             self._log_decision(
                 event_type="net_call"
@@ -645,17 +1282,19 @@ class ProxyServer:
                 decision="deny",
                 reason="budget_exhausted",
                 input_hash=input_hash,
+                metadata=request_metadata,
             )
             return _structured_error("budget_exhausted", tool_name)
 
         anomaly = self.decay_detector.check(self.budget_tracker)
         if anomaly is not None:
-            self._emit_budget_anomaly_event(anomaly=anomaly, input_hash=input_hash)
+            self._emit_budget_anomaly_event(
+                anomaly=anomaly,
+                input_hash=input_hash,
+                request_metadata=request_metadata,
+            )
 
         self._save_budget_state()
-
-        risk_hint = self.contract.tool_risk_classes.get(tool_name)
-        risk_hint_wire = _risk_to_wire(risk_hint.value if risk_hint else "write")
 
         current_time = datetime.now(timezone.utc)
         if self.active_breakglass is not None:
@@ -681,40 +1320,13 @@ class ProxyServer:
                         "expires_at": self.active_breakglass.expires_at,
                         "scope": self.active_breakglass.scope,
                     },
+                    request_metadata=request_metadata,
                 )
 
         if self.active_permits:
-            permit_secret = self._permit_secret
-            if permit_secret is None:
-                raise RuntimeError("permit secret not initialized")
-            permit_manager = PermitManager(
-                contract=self.contract,
-                secret=permit_secret,
-                session_id=self.session_id,
-            )
             for permit in self.active_permits:
-                validation = permit_manager.validate_permit(
+                response = self._try_forward_with_permit(
                     permit,
-                    current_time=current_time,
-                    contract_id=self.contract.contract_id,
-                    contract_hash=self._contract_hash,
-                    session_id=self.session_id,
-                )
-                if not validation.valid:
-                    _LOGGER.warning(
-                        "Active permit %s rejected during evaluation: %s",
-                        permit.permit_id,
-                        validation.reason,
-                    )
-                    continue
-                if tool_name in self.contract.never_allow_tools:
-                    continue
-                if tool_name not in permit.granted_tools:
-                    continue
-                if egress_target is not None:
-                    if not permit.granted_destinations or egress_target not in permit.granted_destinations:
-                        continue
-                return self._forward_allowed_tool_call(
                     raw_request,
                     forward_call,
                     tool_name=tool_name,
@@ -722,18 +1334,19 @@ class ProxyServer:
                     reason="exception_permit_active",
                     input_hash=input_hash,
                     egress_target=egress_target,
-                    override_metadata={
-                        "override_type": "permit",
-                        "permit_id": permit.permit_id,
-                        "request_id": permit.request_id,
-                        "approved_by": permit.approved_by,
-                        "approved_at": permit.approved_at,
-                        "expires_at": permit.expires_at,
-                    },
+                    request_metadata=request_metadata,
                 )
+                if response is not _NO_OVERRIDE:
+                    return response
 
         intercepted = self.circuit_breaker.call(
-            lambda: intercept(self._intercept_request(raw_request), self.contract),
+            lambda: intercept(
+                self._intercept_request(
+                    raw_request,
+                    requesting_agent_id=effective_requesting_agent_id,
+                ),
+                self.contract,
+            ),
             risk_class=risk_hint_wire,
         )
 
@@ -747,6 +1360,7 @@ class ProxyServer:
                 decision=decision,
                 reason="proxy_degraded",
                 input_hash=input_hash,
+                metadata=request_metadata,
             )
             if decision == "deny":
                 return _structured_error("proxy_degraded", tool_name)
@@ -759,6 +1373,7 @@ class ProxyServer:
                 reason="proxy_degraded",
                 input_hash=input_hash,
                 egress_target=egress_target,
+                request_metadata=request_metadata,
             )
 
         result = intercepted
@@ -770,6 +1385,7 @@ class ProxyServer:
                 decision="deny",
                 reason="proxy_degraded",
                 input_hash=input_hash,
+                metadata=request_metadata,
             )
             return _structured_error("proxy_degraded", tool_name)
 
@@ -782,20 +1398,51 @@ class ProxyServer:
                 decision="deny",
                 reason=result.reason,
                 input_hash=result.input_hash,
+                metadata=request_metadata,
             )
             return _structured_error(result.reason, result.tool_name)
 
         if result.decision == "require_approval":
-            if not self.interactive or not self._approval_prompt(result.tool_name):
-                self._log_decision(
-                    event_type="tool_call",
-                    tool_name=result.tool_name,
-                    risk_class=result.risk_class,
-                    decision="deny",
-                    reason="approval_required",
-                    input_hash=result.input_hash,
-                )
-                return _structured_error("approval_required", result.tool_name)
+            approval_request = self._ensure_approval_request(
+                tool_name=result.tool_name,
+                input_hash=result.input_hash,
+                egress_target=egress_target,
+                requesting_agent_id=effective_requesting_agent_id,
+                current_time=current_time,
+            )
+            approval_metadata = _merge_metadata(
+                request_metadata,
+                _approval_context(approval_request),
+            )
+
+            if approval_request.status == "approved" and approval_request.derived_permit is not None:
+                permit = _permit_from_dict(approval_request.derived_permit)
+                if permit is not None:
+                    response = self._try_forward_with_permit(
+                        permit,
+                        raw_request,
+                        forward_call,
+                        tool_name=result.tool_name,
+                        risk_class=result.risk_class,
+                        reason="approval_quorum_active",
+                        input_hash=result.input_hash,
+                        egress_target=egress_target,
+                        request_metadata=approval_metadata,
+                        extra_metadata=_approval_context(approval_request),
+                    )
+                    if response is not _NO_OVERRIDE:
+                        return response
+
+            self._log_decision(
+                event_type="tool_call",
+                tool_name=result.tool_name,
+                risk_class=result.risk_class,
+                decision="deny",
+                reason="approval_required",
+                input_hash=result.input_hash,
+                metadata=approval_metadata,
+            )
+            return _structured_error("approval_required", result.tool_name)
 
         if egress_target is not None:
             egress_allowed, egress_reason = check_egress(egress_target, self.contract)
@@ -807,6 +1454,7 @@ class ProxyServer:
                     decision="deny",
                     reason=egress_reason,
                     input_hash=result.input_hash,
+                    metadata=request_metadata,
                 )
                 return _structured_error(egress_reason, result.tool_name)
 
@@ -818,19 +1466,18 @@ class ProxyServer:
             reason=result.reason,
             input_hash=result.input_hash,
             egress_target=egress_target,
+            request_metadata=request_metadata,
         )
 
 
 def load_contract(contract_path: str | Path) -> Contract:
     """Load and validate a contract file once at startup."""
-    path = Path(contract_path)
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    return Contract.from_dict(payload)
+    return load_charter(contract_path).contract
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Stipul MCP Proxy")
-    parser.add_argument("--contract", required=True, help="Path to contract JSON")
+    parser.add_argument("--contract", required=True, help="Path to Charter policy file")
     parser.add_argument("--passthrough", action="store_true", help="Disable enforcement")
     parser.add_argument("--interactive", action="store_true", help="Enable approval prompts")
     parser.add_argument(

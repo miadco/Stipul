@@ -4,6 +4,8 @@ import copy
 import json
 from pathlib import Path
 
+import yaml
+
 from tests.cli_support import load_base_contract_dict, run_cli, write_contract_file
 
 
@@ -14,11 +16,17 @@ def _write_events(path: Path, rows: list[dict[str, object]]) -> None:
     )
 
 
+def _write_yaml_contract(path: Path, payload: dict[str, object]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    return path
+
+
 def test_cli_simulate_reports_changed_count_and_json(tmp_path: Path) -> None:
     payload = load_base_contract_dict()
     payload["allowed_tools"] = ["web.search"]
     payload["tool_risk_classes"] = {"web.search": "read"}
-    contract_path, _ = write_contract_file(tmp_path, payload)
+    contract_path = _write_yaml_contract(tmp_path / "contract.yaml", payload)
     events_path = tmp_path / "events.jsonl"
     _write_events(
         events_path,
@@ -57,8 +65,8 @@ def test_cli_diff_reports_only_changed_records(tmp_path: Path) -> None:
     payload_a = load_base_contract_dict()
     payload_b = copy.deepcopy(payload_a)
     payload_b["tool_risk_classes"]["filesystem.write"] = "irreversible"
-    contract_a_path, _ = write_contract_file(tmp_path / "a", payload_a)
-    contract_b_path, _ = write_contract_file(tmp_path / "b", payload_b)
+    contract_a_path = _write_yaml_contract(tmp_path / "a" / "contract.yaml", payload_a)
+    contract_b_path = _write_yaml_contract(tmp_path / "b" / "contract.yaml", payload_b)
     events_path = tmp_path / "events.jsonl"
     _write_events(
         events_path,

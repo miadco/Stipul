@@ -104,6 +104,54 @@ def test_logger_writes_monotonic_sequence_ids(tmp_path: Path, contract):
     assert events[0]["session_id"] == _SESSION_ID
 
 
+def test_logger_log_decision_event_writes_authoritative_decision_record(tmp_path: Path, contract):
+    logger = _build_logger(tmp_path, contract)
+
+    event = logger.log_decision_event(
+        event_type="tool_call",
+        tool_name="filesystem.write",
+        risk_class="write",
+        decision="deny",
+        reason="not_in_contract",
+        agent_identity="b" * 64,
+        input_hash="c" * 64,
+        metadata={"path": "out.txt"},
+    )
+
+    assert event.decision == "deny"
+    assert event.reason == "not_in_contract"
+    persisted = json.loads((tmp_path / "events.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert persisted["decision"] == "deny"
+    assert persisted["metadata"] == {"path": "out.txt"}
+
+
+def test_logger_log_decision_event_supports_operator_toggle_event(tmp_path: Path, contract):
+    logger = _build_logger(tmp_path, contract)
+
+    event = logger.log_decision_event(
+        event_type="elev_op",
+        tool_name="__operator__",
+        risk_class="write",
+        decision="allow",
+        reason="operator_kill_switch_enabled",
+        agent_identity="e" * 64,
+        input_hash="f" * 64,
+        metadata={
+            "kill_switch_active": True,
+            "updated_at": "2026-03-07T17:00:00Z",
+            "updated_by": "e" * 64,
+            "reason": "operator_kill_switch_enabled",
+        },
+    )
+
+    assert event.event_type == "elev_op"
+    assert event.decision == "allow"
+    persisted = json.loads((tmp_path / "events.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert persisted["event_type"] == "elev_op"
+    assert persisted["tool_name"] == "__operator__"
+    assert persisted["metadata"]["kill_switch_active"] is True
+
+
 def test_logger_rejects_sequence_gaps(tmp_path: Path, contract):
     logger = _build_logger(tmp_path, contract)
 

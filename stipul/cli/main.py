@@ -6,7 +6,16 @@ import argparse
 import sys
 from collections.abc import Sequence
 
-from stipul.cli import diff_cmd, export_cmd, lint_contract_cmd, scan_cmd, simulate_cmd, verify_cmd
+from stipul.cli import (
+    diff_cmd,
+    export_cmd,
+    gateway_cmd,
+    lint_contract_cmd,
+    operator_cmd,
+    scan_cmd,
+    simulate_cmd,
+    verify_cmd,
+)
 from stipul.cli.io import CLIError
 
 
@@ -19,7 +28,9 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.required = True
     verify_cmd.register(subparsers)
     export_cmd.register(subparsers)
+    gateway_cmd.register(subparsers)
     lint_contract_cmd.register(subparsers)
+    operator_cmd.register(subparsers)
     scan_cmd.register(subparsers)
     simulate_cmd.register(subparsers)
     diff_cmd.register(subparsers)

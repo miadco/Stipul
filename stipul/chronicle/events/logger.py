@@ -159,6 +159,32 @@ class EventLogger:
             payload.pop("prev_session_id", None)
         return payload
 
+    def log_decision_event(
+        self,
+        *,
+        event_type: str,
+        tool_name: str,
+        risk_class: str,
+        decision: str,
+        reason: str,
+        agent_identity: str,
+        input_hash: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> CanonicalEvent:
+        """Append a decision-bearing proxy event to the authoritative stream."""
+        payload: dict[str, Any] = {
+            "event_type": event_type,
+            "tool_name": tool_name,
+            "risk_class": risk_class,
+            "decision": decision,
+            "reason": reason,
+            "agent_identity": agent_identity,
+            "input_hash": input_hash,
+        }
+        if metadata is not None:
+            payload["metadata"] = dict(metadata)
+        return self.log_event(payload)
+
     def log_event(self, event_kwargs: dict[str, Any]) -> CanonicalEvent:
         """Validate, sequence, sign, persist, and return a canonical event."""
         with self._lock:
@@ -177,7 +203,12 @@ class EventLogger:
                     f"does not match logger session_id {self.session_id}"
                 )
 
-            payload = self._build_payload(event_kwargs, expected_sequence)
+            normalized_kwargs = dict(event_kwargs)
+            metadata = normalized_kwargs.get("metadata")
+            if isinstance(metadata, dict):
+                normalized_kwargs["metadata"] = dict(metadata)
+
+            payload = self._build_payload(normalized_kwargs, expected_sequence)
             payload["signature"] = sign_event(payload, self.signing_key.private_key)
             event = CanonicalEvent(**payload)
             event_dict = event.to_dict()

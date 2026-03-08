@@ -1,6 +1,58 @@
 # Stipul
 Stipul is a security enforcement layer for AI agent platforms. Operators define a contract before an agent runs, and every tool call is checked against that contract at the execution boundary. The operating model is sign -> enforce -> prove: define and sign constraints, enforce them at runtime, then produce evidence of what was allowed or denied.
 
+## First Run
+YAML Charter is the preferred operator-facing format. JSON is still accepted, but the canonical first successful run is:
+
+```bash
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -e .
+
+cat > charter.yaml <<'YAML'
+schema_version: "1.0"
+contract_id: "2f2c1ef3-5f4e-47a8-a95a-6205fbb86f5f"
+created_at: "2026-01-01T00:00:00Z"
+expires_at: "2026-12-31T23:59:59Z"
+identity_agent_id: "demo-agent"
+allowed_tools:
+  - "demo.echo"
+never_allow_tools:
+  - "shell.exec"
+tool_risk_classes:
+  demo.echo: "read"
+max_tool_calls: 20
+max_net_calls: 5
+egress_allowlist:
+  - "api.example.com"
+approval_quorum: 1
+YAML
+
+export AGENTSHIELD_TOKEN_SECRET=demo-secret
+
+stipul lint-contract --contract charter.yaml
+
+stipul gateway mcp \
+  --contract charter.yaml \
+  --session-dir .demo-session \
+  --session-id 11111111-1111-1111-1111-111111111111 \
+  --runtime stipul.examples.echo_runtime:build_runtime \
+  --control-port 0
+```
+
+What you should see first:
+
+- gateway mode running over stdio
+- a printed local control URL like `http://127.0.0.1:43123`
+- the existing local operator panel at that URL
+
+Notes:
+
+- `--runtime stipul.examples.echo_runtime:build_runtime` uses the shipped demo runtime. It exposes one tool, `demo.echo`, and returns the provided JSON inputs unchanged.
+- `--control-port 0` starts the existing loopback-only control sidecar in the same process and chooses a free local port automatically.
+- This control surface is local-only. It binds to `127.0.0.1`, not `0.0.0.0`.
+- If the gateway process is already holding the session lock, separate CLI commands against the same session directory may fail until the process exits.
+
 ## Trust Boundaries
 **Token secret isolation:** `AGENTSHIELD_TOKEN_SECRET` must not be present in
 the agent runtime environment. If the agent can read this secret, it can mint
@@ -12,46 +64,34 @@ mounted into the agent container or VM.
 ## Contract Schema
 Annotated example contract:
 
-```jsonc
-{
-  "schema_version": "1.0",           // must be "1.0"
-  "contract_id": "<uuid>",           // unique contract identifier (any UUID version)
-  "parent_contract_id": "<uuid>",    // null if root contract; links to parent for merge chains
-  "created_at": "2025-01-01T00:00:00Z",  // UTC ISO 8601, Z suffix required
-  "expires_at": "2025-06-01T00:00:00Z",  // absolute expiry - not a TTL. must be after created_at
-  "signed_by": "<key_id>",           // null until Week 3 signing; key ID of signing operator
+```yaml
+schema_version: "1.0"                # must be "1.0"
+contract_id: "<uuid>"                # unique contract identifier
+parent_contract_id: null             # optional parent link for merge chains
+created_at: "2026-01-01T00:00:00Z"   # UTC ISO 8601
+expires_at: "2026-12-31T23:59:59Z"   # absolute expiry, must be after created_at
+signed_by: null                      # optional signing key id
 
-  "identity": {
-    "agent_id": "my-agent-v1",       // stable agent name, pinned at session open
-    "code_sha256": "<hex>"           // optional. if set, must match at session open
-  },
+identity_agent_id: "my-agent-v1"     # stable agent name, pinned at session open
+identity_code_sha256: null           # optional code identity binding
 
-  "allowed_tools": [                 // explicit allowlist. default-deny: anything not listed is denied
-    "read_file",
-    "write_file",
-    "search_web"
-  ],
-  "never_allow_tools": [             // permanent prohibitions. deny wins over allowed_tools. always.
-    "delete_all_data",
-    "send_email"
-  ],
+allowed_tools:                       # explicit allowlist
+  - "filesystem.write"
+  - "web.search"
+never_allow_tools:                   # deny wins over allowed_tools
+  - "shell.exec"
 
-  "tool_risk_classes": {             // drives policy decisions. tools absent here default to "write"
-    "read_file":  "read",
-    "write_file": "write",
-    "search_web": "exfil_risk"
-  },
+tool_risk_classes:                   # tools absent here default to "write"
+  filesystem.write: "write"
+  web.search: "read"
 
-  "max_tool_calls": 100,             // hard cap on total tool invocations this session
-  "max_net_calls": 20,               // hard cap on network-touching calls this session
+max_tool_calls: 100                  # hard cap on total tool invocations
+max_net_calls: 20                    # hard cap on network-touching calls
+approval_quorum: 1                   # required approvals when Charter returns require_approval
 
-  "egress_allowlist": [              // permitted outbound domains
-    "api.openai.com",                // exact host match
-    ".github.com"                    // suffix match: covers api.github.com, raw.github.com, etc.
-                                     // leading dot is required and is what distinguishes suffix from exact
-                                     // no wildcards, no ports, no schemes
-  ]
-}
+egress_allowlist:                    # permitted outbound domains
+  - "api.example.com"                # exact host match
+  - ".trusted.example"               # suffix match, leading dot required
 ```
 
 ## Policy Rule Table
@@ -115,10 +155,11 @@ Plain operator loop:
 
 ```bash
 stipul scan /path/to/repo --json-out scan.json
-stipul lint-contract --contract contract.json
-python -m stipul.writ.proxy.server --contract contract.json
-stipul verify --session-dir /path/to/session --contract contract.json --public-key /path/to/runtime_key.pub
-stipul export --session-dir /path/to/session --out-dir /path/to/bundle --contract contract.json --public-key /path/to/runtime_key.pub --scan-report scan.json
+stipul lint-contract --contract charter.yaml
+stipul gateway mcp --contract charter.yaml --session-dir /path/to/session --session-id 11111111-1111-1111-1111-111111111111 --runtime stipul.examples.echo_runtime:build_runtime --control-port 0
+stipul verify --session-dir /path/to/session --contract charter.yaml --public-key /path/to/runtime_key.pub
+stipul export --session-dir /path/to/session --out-dir /path/to/bundle --contract charter.yaml --public-key /path/to/runtime_key.pub --scan-report scan.json
+stipul export --session-dir /path/to/session --out-dir /path/to/bundle --contract charter.yaml --public-key /path/to/runtime_key.pub --timestamp-rfc3161 https://tsa.example
 ```
 
 Required environment variables:
@@ -130,8 +171,11 @@ Required environment variables:
 Operator notes:
 
 - `scan` is heuristic, deterministic, and read-only. It never imports scanned modules, executes code, or makes network calls.
-- `verify` proves signed-chain integrity and that `decisions.jsonl` matches the authoritative `events.jsonl` projection.
+- `verify` proves signed-chain integrity for the authoritative `events.jsonl` stream.
 - `export` produces a shareable evidence bundle. Use `--redact` when you need to remove metadata leaf values from `events.jsonl`, and `--scan-report` when you want to bundle prior scanner output. Its manifest `exported_at` is derived from session artifacts so repeated exports of the same inputs stay deterministic.
+- `export --timestamp-rfc3161 <tsa-url>` adds an RFC 3161 receipt beside the export bundle manifest for the deterministic non-redacted bundle hash. This is downstream timestamp proof only; Seal verification still applies to `events.jsonl`.
+- `gateway mcp` runs the existing Writ enforcement core over MCP stdio. The tool catalog is still caller-supplied; the shipped `stipul.examples.echo_runtime:build_runtime` is only a minimal first-run runtime.
+- `--control-port` starts the existing loopback operator sidecar in the same process. The printed URL is local-only and is the best live control surface when the gateway process already holds the session lock.
 - Trust remains bounded: response payloads are not inspected, agent filesystem writes are not monitored, and coverage claims depend on wrapper logging when `wrapper_log.jsonl` is present.
 
 See `docs/CLI.md` for command details and exit codes.

@@ -5,16 +5,19 @@ from pathlib import Path
 
 from tests.cli_support import load_base_contract_dict, run_cli
 
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
+
 
 def _write_contract(path: Path, payload: dict[str, object]) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def test_cli_lint_contract_success_with_warnings(tmp_path: Path) -> None:
-    contract_path = tmp_path / "contract.json"
-    _write_contract(contract_path, load_base_contract_dict())
-
-    result = run_cli("lint-contract", "--contract", str(contract_path))
+    result = run_cli(
+        "lint-contract",
+        "--contract",
+        str(FIXTURES_DIR / "base_contract.yaml"),
+    )
 
     assert result.returncode == 0
     assert "Errors: 0" in result.stdout
@@ -45,3 +48,13 @@ def test_cli_lint_contract_returns_fatal_for_schema_invalid_payload(tmp_path: Pa
 
     assert result.returncode == 3
     assert "expires_at must be strictly after created_at" in result.stderr
+
+
+def test_cli_lint_contract_returns_fatal_for_invalid_yaml(tmp_path: Path) -> None:
+    contract_path = tmp_path / "contract.yaml"
+    contract_path.write_text("allowed_tools: [web.search\n", encoding="utf-8")
+
+    result = run_cli("lint-contract", "--contract", str(contract_path))
+
+    assert result.returncode == 3
+    assert "Invalid YAML" in result.stderr

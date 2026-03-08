@@ -9,7 +9,10 @@ description = "Policy and contract utilities for agent safety."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "asn1crypto>=1.5.1",
     "cryptography>=41",
+    "mcp>=1,<2",
+    "PyYAML>=6",
 ]
 
 [project.scripts]
