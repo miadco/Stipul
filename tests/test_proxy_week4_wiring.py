@@ -52,7 +52,7 @@ def _now() -> datetime:
 
 
 def test_permit_overrides_not_in_contract_without_bypassing_budget(tmp_path: Path, monkeypatch, base_dict):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     monkeypatch.setenv(PERMIT_SECRET_ENV, _PERMIT_SECRET.decode("utf-8"))
     payload = dict(base_dict)
     payload["tool_risk_classes"] = dict(base_dict["tool_risk_classes"])
@@ -105,7 +105,7 @@ def test_permit_overrides_not_in_contract_without_bypassing_budget(tmp_path: Pat
 
 
 def test_breakglass_overrides_permit_priority(tmp_path: Path, monkeypatch, base_dict):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     monkeypatch.setenv(PERMIT_SECRET_ENV, _PERMIT_SECRET.decode("utf-8"))
     payload = dict(base_dict)
     payload["tool_risk_classes"] = dict(base_dict["tool_risk_classes"])
@@ -185,7 +185,7 @@ def test_active_permits_require_env_secret(tmp_path: Path, base_dict):
 
 
 def test_wrong_env_secret_rejects_permit_and_logs_reason(tmp_path: Path, monkeypatch, caplog, base_dict):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     contract = _contract_with_debug_tool(base_dict)
     permit_manager = PermitManager(contract, _PERMIT_SECRET, _SESSION_ID)
     now = _now()
@@ -222,7 +222,7 @@ def test_wrong_env_secret_rejects_permit_and_logs_reason(tmp_path: Path, monkeyp
 
 
 def test_budget_exhaustion_overrides_breakglass(tmp_path: Path, monkeypatch, contract):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     breakglass = BreakGlassManager(contract).trigger(
         triggered_by_hex64=_HEX_B,
         reason="Need emergency access to all tools",

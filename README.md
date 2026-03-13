@@ -28,7 +28,7 @@ egress_allowlist:
 approval_quorum: 1
 YAML
 
-export AGENTSHIELD_TOKEN_SECRET=demo-secret
+export STIPUL_TOKEN_SECRET=demo-secret
 
 stipul lint-contract --contract charter.yaml
 
@@ -54,7 +54,7 @@ Notes:
 - If the gateway process is already holding the session lock, separate CLI commands against the same session directory may fail until the process exits.
 
 ## Trust Boundaries
-**Token secret isolation:** `AGENTSHIELD_TOKEN_SECRET` must not be present in
+**Token secret isolation:** `STIPUL_TOKEN_SECRET` must not be present in
 the agent runtime environment. If the agent can read this secret, it can mint
 valid tokens and bypass the chokepoint. The secret is only permitted in the
 MCP Proxy and Server Wrapper process environments. It must be absent from the
@@ -164,9 +164,9 @@ stipul export --session-dir /path/to/session --out-dir /path/to/bundle --contrac
 
 Required environment variables:
 
-- `AGENTSHIELD_TOKEN_SECRET`: token minting / validation secret. Keep it out of the agent runtime environment.
-- `AGENTSHIELD_PERMIT_SECRET`: required when JIT permit validation is enabled.
-- `AGENTSHIELD_WRAPPER_LOG_PATH`: optional wrapper log path used for coverage and bypass-gap detection.
+- `STIPUL_TOKEN_SECRET`: token minting / validation secret. Keep it out of the agent runtime environment.
+- `STIPUL_PERMIT_SECRET`: required when JIT permit validation is enabled.
+- `STIPUL_WRAPPER_LOG_PATH`: optional wrapper log path used for coverage and bypass-gap detection.
 
 Operator notes:
 
@@ -177,6 +177,26 @@ Operator notes:
 - `gateway mcp` runs the existing Writ enforcement core over MCP stdio. The tool catalog is still caller-supplied; the shipped `stipul.examples.echo_runtime:build_runtime` is only a minimal first-run runtime.
 - `--control-port` starts the existing loopback operator sidecar in the same process. The printed URL is local-only and is the best live control surface when the gateway process already holds the session lock.
 - Trust remains bounded: response payloads are not inspected, agent filesystem writes are not monitored, and coverage claims depend on wrapper logging when `wrapper_log.jsonl` is present.
+
+## Framework Integration Boundary
+Stipul is the runtime contract and evidence layer for agent actions. The current official protocol surface is MCP, and the shipped path is `stipul/cli/gateway_cmd.py -> stipul/writ/proxy/mcp_gateway.py -> ProxyServer.handle_tool_call()`.
+
+Adapters for frameworks such as LangGraph or the OpenAI Agents SDK should attach at the same boundary:
+
+- MCP-speaking adapters should use the existing gateway surface and pass their tool catalog plus executor into `ProxyServer.create_mcp_gateway(...)`.
+- Non-MCP adapters should normalize each action into the proxy request shape that `ProxyServer.handle_tool_call()` already expects, then provide the real tool execution function as the `forward_call`.
+- Normalize `tool_name` to a non-empty string, normalize tool arguments under `inputs`, put network destinations in `inputs.egress_target`, and set `metadata.ingress` to the adapter name or protocol. Include narrow target hints such as `path`, `target`, or `approval_context` only when the adapter already has them.
+- Keep `events.jsonl` authoritative. Do not add a second event ledger, second enforcement path, or adapter-side derived cache.
+
+Standard scenario pack for every first-party adapter:
+
+1. allowed safe read
+2. denied dangerous write
+3. approval-gated irreversible or exfil-risk action
+4. unknown tool denied
+5. kill switch enforced
+6. evidence verification success via `stipul verify`
+7. tamper verification failure after mutating `events.jsonl`
 
 See `docs/CLI.md` for command details and exit codes.
 See `CHANGELOG.md`, `docs/THREAT_MODEL.md`, and `SECURITY.md` for release and trust documentation.

@@ -1,0 +1,27 @@
+{
+  "allowed_tools": [
+    "filesystem.read",
+    "filesystem.delete"
+  ],
+  "approval_quorum": 1,
+  "contract_id": "44444444-4444-4444-4444-444444444444",
+  "created_at": "2026-03-10T00:00:00Z",
+  "egress_allowlist": [
+    "api.example.com"
+  ],
+  "expires_at": "2099-01-01T00:00:00Z",
+  "identity_agent_id": "agent.openai_agents_stdio",
+  "identity_code_sha256": null,
+  "max_net_calls": 5,
+  "max_tool_calls": 20,
+  "never_allow_tools": [
+    "shell.exec"
+  ],
+  "parent_contract_id": null,
+  "schema_version": "1.0",
+  "signed_by": null,
+  "tool_risk_classes": {
+    "filesystem.delete": "irreversible",
+    "filesystem.read": "read"
+  }
+}

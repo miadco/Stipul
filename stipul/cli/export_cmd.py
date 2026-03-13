@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -12,10 +13,6 @@ from stipul.cli.io import CLIError
 from stipul.cli.io import ensure_session_dir
 from stipul.exceptions import ContractValidationError
 from stipul.seal.exporter import export_session_bundle
-from stipul.seal.rfc3161_anchor import (
-    rfc3161_receipt_path,
-    timestamp_export_bundle_rfc3161,
-)
 from stipul.seal.siem_export import SiemExportFilters, export_siem_jsonl, siem_manifest_path
 
 
@@ -58,6 +55,36 @@ def _format_tsa_gen_time(value: Any) -> str | None:
     if parsed.tzinfo is None:
         return value
     return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _load_rfc3161_functions() -> tuple[
+    Callable[[str | Path], Path],
+    Callable[[str | Path, str], dict[str, Any]],
+]:
+    try:
+        from stipul.seal.rfc3161_anchor import (
+            rfc3161_receipt_path as receipt_path_fn,
+            timestamp_export_bundle_rfc3161 as timestamp_fn,
+        )
+    except ModuleNotFoundError as exc:
+        if exc.name != "asn1crypto":
+            raise
+        raise CLIError(
+            "RFC 3161 timestamping requires the optional `asn1crypto` dependency. "
+            "Install it before using --timestamp-rfc3161.",
+            exit_code=3,
+        ) from exc
+    return receipt_path_fn, timestamp_fn
+
+
+def rfc3161_receipt_path(bundle_dir: str | Path) -> Path:
+    receipt_path_fn, _ = _load_rfc3161_functions()
+    return receipt_path_fn(bundle_dir)
+
+
+def timestamp_export_bundle_rfc3161(bundle_dir: str | Path, tsa_url: str) -> dict[str, Any]:
+    _, timestamp_fn = _load_rfc3161_functions()
+    return timestamp_fn(bundle_dir, tsa_url)
 
 
 def run(args: argparse.Namespace) -> int:

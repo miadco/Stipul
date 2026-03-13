@@ -227,7 +227,7 @@ def test_prev_unsigned_terminal_hash_absent_on_fresh_start(tmp_path: Path, contr
 def test_prev_unsigned_terminal_hash_absent_when_unsigned_was_in_renamed_file(
     tmp_path: Path, base_dict, monkeypatch
 ) -> None:
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     contract_path = tmp_path / "contract.json"
     _write_contract(contract_path, base_dict)
@@ -263,7 +263,7 @@ def test_prev_unsigned_terminal_hash_absent_when_unsigned_was_in_renamed_file(
 def test_genesis_includes_prev_chain_fields_when_prior_signed_session_is_renamed(
     tmp_path: Path, base_dict, monkeypatch
 ) -> None:
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     contract_path = tmp_path / "contract.json"
     _write_contract(contract_path, base_dict)

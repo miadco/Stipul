@@ -87,6 +87,16 @@ Exit codes:
 - `0`: export completed
 - `3`: fatal input or filesystem error
 
+### `stipul history`
+
+Render a human-readable timeline directly from the authoritative `events.jsonl` stream.
+
+```bash
+stipul history --events /path/to/events.jsonl --session-id 11111111-1111-1111-1111-111111111111 --limit 20
+```
+
+By default, `stipul history` reads `./events.jsonl`. It stays read-only, validates each row against the canonical event schema, groups output by `session_id`, and translates decisions into plain language for operators.
+
 ### `stipul scan`
 
 Run a bounded, deterministic scanner against a file or directory.

@@ -5,7 +5,7 @@ from stipul.writ.wrapper.mcp_wrapper import handle_tool_call
 
 
 def test_wrapper_allows_valid_token(monkeypatch, contract):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
 
     token = mint_token(
         tool_name="filesystem.write",

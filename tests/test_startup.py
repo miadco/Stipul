@@ -17,7 +17,7 @@ def test_secret_in_agent_environment_refuses_startup(caplog) -> None:
         check_secret_isolation(
             agent_env={
                 "PATH": "/usr/bin",
-                "AGENTSHIELD_TOKEN_SECRET": "super-secret",
+                "STIPUL_TOKEN_SECRET": "super-secret",
             }
         )
 

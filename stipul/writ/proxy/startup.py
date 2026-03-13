@@ -16,7 +16,7 @@ _FATAL_SECRET_MESSAGE = (
 )  # nosec B105
 _ISOLATION_UNVERIFIED_WARNING = (
     "Token secret isolation could not be verified. "
-    "Ensure AGENTSHIELD_TOKEN_SECRET is not accessible to the agent process."
+    "Ensure STIPUL_TOKEN_SECRET is not accessible to the agent process."
 )
 
 

@@ -83,7 +83,7 @@ def test_valid_single_step_delegation_chain_succeeds_and_logs_metadata(
     monkeypatch,
     contract: Contract,
 ) -> None:
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     monkeypatch.setenv(PERMIT_SECRET_ENV, _DELEGATION_SECRET.decode("utf-8"))
     events_path = tmp_path / "events.jsonl"
     delegated_actor = "delegate.worker"
@@ -119,7 +119,7 @@ def test_valid_multi_step_delegation_chain_within_max_depth_succeeds(
     monkeypatch,
     contract: Contract,
 ) -> None:
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     monkeypatch.setenv(PERMIT_SECRET_ENV, _DELEGATION_SECRET.decode("utf-8"))
     events_path = tmp_path / "events.jsonl"
     leaf_actor = "delegate.leaf"

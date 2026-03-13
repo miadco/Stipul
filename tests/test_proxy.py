@@ -12,6 +12,7 @@ from stipul.chronicle.events.store import EventStore
 from stipul.writ.proxy.server import ProxyServer
 from stipul.chronicle.signing.keys import generate_keypair
 from stipul.charter.token.validate import validate_token
+from stipul.utils.canonical import compute_prev_hash
 
 _SESSION_ID = "11111111-1111-1111-1111-111111111111"
 
@@ -41,7 +42,7 @@ def _build_proxy(contract: Contract, events_path: Path, **kwargs) -> ProxyServer
 
 
 def test_allowed_tool_call_forwards_and_logs_event(tmp_path: Path, monkeypatch, contract):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     events_path = tmp_path / "events.jsonl"
     proxy = _build_proxy(contract, events_path)
 
@@ -69,13 +70,20 @@ def test_allowed_tool_call_forwards_and_logs_event(tmp_path: Path, monkeypatch, 
     assert events[0]["decision"] == "allow"
     assert events[0]["prev_hash"] == compute_contract_hash(contract)
     assert isinstance(events[0]["signature"], str) and events[0]["signature"]
+    attestation = proxy.event_logger.last_attestation
+    assert attestation is not None
+    assert attestation["kind"] == "chronicle_attestation"
+    assert attestation["decision"] == "allow"
+    assert attestation["tool_name"] == "filesystem.write"
+    assert attestation["event_hash"] == compute_prev_hash(events[0])
+    assert attestation["signature"] == events[0]["signature"]
     assert [path.name for path in tmp_path.glob("*.jsonl")] == ["events.jsonl"]
 
 
 def test_allowed_tool_call_logs_authoritative_allow_before_forward_error(
     tmp_path: Path, monkeypatch, contract
 ):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     events_path = tmp_path / "events.jsonl"
     proxy = _build_proxy(contract, events_path)
 
@@ -97,7 +105,7 @@ def test_allowed_tool_call_logs_authoritative_allow_before_forward_error(
 
 
 def test_denied_tool_call_returns_structured_error_and_never_forwards(tmp_path: Path, monkeypatch, contract):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     events_path = tmp_path / "events.jsonl"
     proxy = _build_proxy(contract, events_path)
 
@@ -128,7 +136,7 @@ def test_denied_tool_call_returns_structured_error_and_never_forwards(tmp_path: 
 def test_egress_not_allowlisted_returns_structured_error_and_logs_net_call(
     tmp_path: Path, monkeypatch, contract
 ):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     events_path = tmp_path / "events.jsonl"
     proxy = _build_proxy(contract, events_path)
 
@@ -163,7 +171,7 @@ def test_egress_not_allowlisted_returns_structured_error_and_logs_net_call(
 def test_require_approval_in_headless_mode_returns_approval_required(
     tmp_path: Path, monkeypatch, base_dict
 ):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
 
     allowed_tools = set(base_dict["allowed_tools"])
     allowed_tools.add("dangerous.op")
@@ -290,7 +298,7 @@ def test_kill_switch_active_denies_before_passthrough_and_logs_event(tmp_path: P
 
 
 def test_events_sequence_ids_are_monotonic_without_gaps(tmp_path: Path, monkeypatch, contract):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     events_path = tmp_path / "events.jsonl"
     proxy = _build_proxy(contract, events_path)
 
@@ -306,7 +314,7 @@ def test_events_sequence_ids_are_monotonic_without_gaps(tmp_path: Path, monkeypa
 
 
 def test_policy_error_on_write_returns_proxy_degraded(tmp_path: Path, monkeypatch, contract):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     events_path = tmp_path / "events.jsonl"
     proxy = _build_proxy(contract, events_path)
 
@@ -332,7 +340,7 @@ def test_policy_error_on_write_returns_proxy_degraded(tmp_path: Path, monkeypatc
 
 
 def test_three_policy_failures_emit_circuit_breaker_open_event(tmp_path: Path, monkeypatch, contract):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     events_path = tmp_path / "events.jsonl"
     proxy = _build_proxy(contract, events_path)
 

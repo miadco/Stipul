@@ -53,7 +53,7 @@ def _contract_with_debug_tool(base_dict: dict) -> Contract:
 
 
 def test_permit_lifecycle(base_dict, tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     monkeypatch.setenv(PERMIT_SECRET_ENV, _PERMIT_SECRET.decode("utf-8"))
     contract = _contract_with_debug_tool(base_dict)
     now = _now()
@@ -111,7 +111,7 @@ def test_permit_lifecycle(base_dict, tmp_path: Path, monkeypatch):
 
 
 def test_breakglass_lifecycle(base_dict, tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     contract = _contract_with_debug_tool(base_dict)
     now = _now()
 
@@ -205,9 +205,9 @@ def test_inheritance_across_three_layers(base_dict):
 
 
 def test_bypass_detector_with_real_wrapper_log(tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     wrapper_log_path = tmp_path / "wrapper_log.jsonl"
-    monkeypatch.setenv("AGENTSHIELD_WRAPPER_LOG_PATH", str(wrapper_log_path))
+    monkeypatch.setenv("STIPUL_WRAPPER_LOG_PATH", str(wrapper_log_path))
     token = mint_token(
         tool_name="filesystem.write",
         scope="tool.execute",

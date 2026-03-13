@@ -16,6 +16,7 @@ from stipul.chronicle.events.logger import EventLogger
 from stipul.chronicle.events.store import EventStore
 from stipul.chronicle.signing.keys import generate_keypair
 from stipul.writ.proxy.server import ProxyServer
+from stipul.utils.canonical import compute_prev_hash
 
 _SESSION_ID = "11111111-1111-1111-1111-111111111111"
 
@@ -111,7 +112,7 @@ def test_mcp_gateway_tools_call_allow_flows_through_proxy_and_logs_authoritative
     contract: Contract,
     monkeypatch,
 ) -> None:
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     events_path = tmp_path / "session" / "events.jsonl"
     proxy = _build_proxy(contract, events_path)
     seen: dict[str, object] = {}
@@ -157,6 +158,12 @@ def test_mcp_gateway_tools_call_allow_flows_through_proxy_and_logs_authoritative
         assert events[0]["decision"] == "allow"
         assert events[0]["reason"] == "risk_class"
         assert events[0]["metadata"]["ingress"] == "mcp_gateway"
+        attestation = proxy.event_logger.last_attestation
+        assert attestation is not None
+        assert attestation["kind"] == "chronicle_attestation"
+        assert attestation["sequence_id"] == events[0]["sequence_id"]
+        assert attestation["event_hash"] == compute_prev_hash(events[0])
+        assert attestation["signature"] == events[0]["signature"]
         assert not (events_path.parent / "wrapper_log.jsonl").exists()
     finally:
         proxy.close()

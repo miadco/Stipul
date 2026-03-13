@@ -10,6 +10,7 @@ from stipul.chronicle.events.logger import EventLogger, EventWriteError
 from stipul.chronicle.events.models import CanonicalEvent
 from stipul.chronicle.events.store import EventStore
 from stipul.chronicle.signing.keys import generate_keypair
+from stipul.utils.canonical import compute_prev_hash
 
 _SESSION_ID = "11111111-1111-1111-1111-111111111111"
 
@@ -123,6 +124,31 @@ def test_logger_log_decision_event_writes_authoritative_decision_record(tmp_path
     persisted = json.loads((tmp_path / "events.jsonl").read_text(encoding="utf-8").splitlines()[0])
     assert persisted["decision"] == "deny"
     assert persisted["metadata"] == {"path": "out.txt"}
+
+
+def test_logger_exposes_last_attestation_for_written_event(tmp_path: Path, contract):
+    logger = _build_logger(tmp_path, contract)
+
+    event = logger.log_decision_event(
+        event_type="tool_call",
+        tool_name="filesystem.write",
+        risk_class="write",
+        decision="allow",
+        reason="risk_class",
+        agent_identity="b" * 64,
+        input_hash="c" * 64,
+    )
+
+    attestation = logger.last_attestation
+    assert attestation is not None
+    persisted = json.loads((tmp_path / "events.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert attestation["kind"] == "chronicle_attestation"
+    assert attestation["event_hash"] == compute_prev_hash(persisted)
+    assert attestation["sequence_id"] == event.sequence_id
+    assert attestation["session_id"] == event.session_id
+    assert attestation["tool_name"] == event.tool_name
+    assert attestation["decision"] == event.decision
+    assert attestation["signature"] == persisted["signature"] == event.signature
 
 
 def test_logger_log_decision_event_supports_operator_toggle_event(tmp_path: Path, contract):

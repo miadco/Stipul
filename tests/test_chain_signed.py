@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -7,10 +8,13 @@ from typing import Any
 import pytest
 
 from stipul.charter.contract.utils import compute_contract_hash
+from stipul.chronicle.events.logger import EventLogger
+from stipul.chronicle.events.store import EventStore
 from stipul.chronicle.signing.keys import generate_keypair
 from stipul.chronicle.signing.signer import sign_event
 from stipul.chronicle.signing.verifier import verify_chain
 from stipul.utils.canonical import canonical_json_bytes, compute_prev_hash
+from stipul.writ.proxy.server import ProxyServer
 
 SESSION_ID = "11111111-1111-1111-1111-111111111111"
 OTHER_SESSION_ID = "99999999-9999-9999-9999-999999999999"
@@ -85,6 +89,49 @@ def _build_valid_chain(private_key, contract, count: int = 3) -> list[dict[str, 
 
 def _failure_kinds(result) -> list[str]:
     return [failure.kind for failure in result.failures]
+
+
+@pytest.mark.signed_chain
+def test_verify_chain_accepts_real_proxy_allow_path(tmp_path: Path, contract, monkeypatch) -> None:
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
+    events_path = tmp_path / "events.jsonl"
+    keypair = generate_keypair(tmp_path / "keys")
+    logger = EventLogger(
+        store=EventStore(events_path),
+        session_id=SESSION_ID,
+        contract_id=contract.contract_id,
+        contract_hash=compute_contract_hash(contract),
+        signing_key=keypair,
+        state_dir=tmp_path,
+    )
+    proxy = ProxyServer(
+        contract=contract,
+        event_logger=logger,
+        session_id=SESSION_ID,
+        state_dir=tmp_path,
+    )
+
+    try:
+        response = proxy.handle_tool_call(
+            {"tool_name": "filesystem.write", "inputs": {"path": "out.txt", "content": "x"}},
+            lambda _request: {"ok": True},
+        )
+        assert response == {"ok": True}
+
+        attestation = proxy.event_logger.last_attestation
+        assert attestation is not None
+        persisted = json.loads(events_path.read_text(encoding="utf-8").splitlines()[0])
+        assert attestation["kind"] == "chronicle_attestation"
+        assert attestation["event_hash"] == compute_prev_hash(persisted)
+        assert attestation["signature"] == persisted["signature"]
+        assert attestation["decision"] == "allow"
+
+        result = verify_chain(events_path, keypair.public_key, contract)
+        assert result.status == "INTACT"
+        assert result.signed_event_count == 1
+        assert result.failures == []
+    finally:
+        proxy.close()
 
 
 @pytest.mark.signed_chain

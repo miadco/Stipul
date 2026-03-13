@@ -46,6 +46,7 @@ class EventLogger:
     _sequence_id: int = field(default=0, init=False)
     _last_event_timestamp: str | None = field(default=None, init=False)
     _last_event_hash: str | None = field(default=None, init=False)
+    _last_attestation: dict[str, Any] | None = field(default=None, init=False)
     _pending_prev_unsigned_terminal_hash: str | None = field(default=None, init=False)
 
     def __post_init__(self) -> None:
@@ -55,6 +56,13 @@ class EventLogger:
     @property
     def last_event_timestamp(self) -> str | None:
         return self._last_event_timestamp
+
+    @property
+    def last_attestation(self) -> dict[str, Any] | None:
+        """Return the most recent authoritative event attestation snapshot."""
+        if self._last_attestation is None:
+            return None
+        return dict(self._last_attestation)
 
     def _bootstrap_state(self) -> None:
         head = read_session_head(self.state_dir)
@@ -220,9 +228,28 @@ class EventLogger:
             except Exception as exc:
                 raise EventWriteError("failed to append signed event") from exc
 
+            event_hash = compute_prev_hash(event_dict)
             self._sequence_id = expected_sequence
             self._last_event_timestamp = event.timestamp
-            self._last_event_hash = compute_prev_hash(event_dict)
+            self._last_event_hash = event_hash
+            self._last_attestation = {
+                "kind": "chronicle_attestation",
+                "event_hash": event_hash,
+                "sequence_id": event.sequence_id,
+                "timestamp": event.timestamp,
+                "session_id": event.session_id,
+                "event_type": event.event_type,
+                "tool_name": event.tool_name,
+                "decision": event.decision,
+                "reason": event.reason,
+                "contract_id": event.contract_id,
+                "contract_hash": event.contract_hash,
+                "prev_hash": event.prev_hash,
+                "signature": event.signature,
+                "key_id": event.key_id,
+                "algorithm": event.algorithm,
+                "key_created_at": event.key_created_at,
+            }
             if "prev_unsigned_terminal_hash" in event_dict:
                 self._pending_prev_unsigned_terminal_hash = None
             return event

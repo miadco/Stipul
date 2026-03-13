@@ -27,9 +27,9 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
 
 
 def test_wrapper_writes_wrapper_log_jsonl(tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     wrapper_log_path = tmp_path / "wrapper_log.jsonl"
-    monkeypatch.setenv("AGENTSHIELD_WRAPPER_LOG_PATH", str(wrapper_log_path))
+    monkeypatch.setenv("STIPUL_WRAPPER_LOG_PATH", str(wrapper_log_path))
 
     token = mint_token(
         tool_name="filesystem.write",
@@ -267,9 +267,9 @@ def test_emit_gap_events_and_summary_fields():
 
 
 def test_detect_real_wrapper_and_proxy_match_with_canonical_hashing(tmp_path: Path, monkeypatch, contract):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     wrapper_log_path = tmp_path / "wrapper_log.jsonl"
-    monkeypatch.setenv("AGENTSHIELD_WRAPPER_LOG_PATH", str(wrapper_log_path))
+    monkeypatch.setenv("STIPUL_WRAPPER_LOG_PATH", str(wrapper_log_path))
     events_path = tmp_path / "events.jsonl"
     keypair = generate_keypair(tmp_path / ".stipul" / "keys")
     proxy = ProxyServer(

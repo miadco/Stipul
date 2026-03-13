@@ -1,6 +1,6 @@
 # Sunday Demo Runbook
 
-For the canonical first-run gateway path, start with [README.md](/home/michael/Downloads/agentshield/README.md).
+For the canonical first-run gateway path, start with [README.md](/home/michael/Downloads/stipul/README.md).
 This runbook is the deeper source-checkout-oriented proof/demo path.
 
 This is still a source-checkout demo, not a clean-install operator workflow.
@@ -12,7 +12,7 @@ It intentionally uses repo-local assets because the current repo does not ship a
 - `tests/fixtures/base_contract.json`
 
 The demo keeps runtime key material local by setting `HOME="$PWD/.demo-run"`.
-It also sets a local `AGENTSHIELD_TOKEN_SECRET` for the proxy snippets that mint execution tokens.
+It also sets a local `STIPUL_TOKEN_SECRET` for the proxy snippets that mint execution tokens.
 You may also see `Token secret isolation could not be verified...` during the local proxy snippets; that is expected in this one-process demo because no separate agent PID is supplied.
 
 ## 1. Create a clean demo workspace
@@ -38,7 +38,7 @@ PY
 ## 2. Normal allow
 
 ```bash
-export AGENTSHIELD_TOKEN_SECRET=demo-secret
+export STIPUL_TOKEN_SECRET=demo-secret
 
 HOME="$PWD/.demo-run" .venv/bin/python - <<'PY'
 from pathlib import Path
@@ -199,6 +199,6 @@ You should see these rows in order:
 ## 7. Cleanup
 
 ```bash
-unset AGENTSHIELD_TOKEN_SECRET
+unset STIPUL_TOKEN_SECRET
 rm -rf .demo-run
 ```

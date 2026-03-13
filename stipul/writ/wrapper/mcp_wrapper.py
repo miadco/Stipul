@@ -14,7 +14,7 @@ from stipul.utils.canonical import canonical_json_bytes
 
 
 DecisionError = dict[str, str]
-_WRAPPER_LOG_PATH_ENV = "AGENTSHIELD_WRAPPER_LOG_PATH"
+_WRAPPER_LOG_PATH_ENV = "STIPUL_WRAPPER_LOG_PATH"
 _WRAPPER_ERROR_REASON = "wrapper_error"
 
 

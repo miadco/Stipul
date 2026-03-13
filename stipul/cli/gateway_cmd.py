@@ -7,12 +7,28 @@ import importlib
 from pathlib import Path
 from typing import Any
 
-import anyio
-
 from stipul.cli.io import CLIError
 from stipul.exceptions import ContractValidationError
 from stipul.writ.proxy.server import ProxyServer
 from stipul.writ.proxy.session_lock import SessionLockError
+
+
+class _AnyIOProxy:
+    def run(self, target: Any) -> Any:
+        try:
+            import anyio as anyio_module
+        except ModuleNotFoundError as exc:
+            if exc.name != "anyio":
+                raise
+            raise CLIError(
+                "MCP gateway requires the optional `anyio` dependency. "
+                "Install it before using `stipul gateway mcp`.",
+                exit_code=3,
+            ) from exc
+        return anyio_module.run(target)
+
+
+anyio = _AnyIOProxy()
 
 
 def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:

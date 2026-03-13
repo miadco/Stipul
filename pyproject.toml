@@ -36,6 +36,10 @@ dev = [
 [tool.setuptools.dynamic]
 version = {attr = "stipul.__version__"}
 
+[tool.setuptools.packages.find]
+include = ["stipul*"]
+namespaces = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

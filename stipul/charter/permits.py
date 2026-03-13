@@ -18,7 +18,7 @@ from stipul.chronicle.events.models import CanonicalEvent
 from stipul.utils.canonical import canonical_json_bytes
 
 _HEX64_RE = re.compile(r"^[0-9a-fA-F]{64}$")
-PERMIT_SECRET_ENV = "AGENTSHIELD_PERMIT_SECRET"  # nosec B105
+PERMIT_SECRET_ENV = "STIPUL_PERMIT_SECRET"  # nosec B105
 
 
 class PermitScopeError(Exception):

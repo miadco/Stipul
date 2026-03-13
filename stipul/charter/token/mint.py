@@ -12,7 +12,7 @@ from typing import Any
 
 from stipul.utils.canonical import canonical_json_bytes
 
-_TOKEN_SECRET_ENV = "AGENTSHIELD_TOKEN_SECRET"  # nosec B105
+_TOKEN_SECRET_ENV = "STIPUL_TOKEN_SECRET"  # nosec B105
 
 
 def _b64url_encode(data: bytes) -> str:

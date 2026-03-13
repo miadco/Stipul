@@ -66,8 +66,8 @@ def test_quorum_not_reached_denies_and_reuses_same_pending_request(
     monkeypatch: pytest.MonkeyPatch,
     base_dict: dict,
 ) -> None:
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
-    monkeypatch.setenv("AGENTSHIELD_PERMIT_SECRET", "permit-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_PERMIT_SECRET", "permit-secret")
     contract = _approval_contract(base_dict)
     events_path = tmp_path / "events.jsonl"
     proxy = _build_proxy(contract, events_path)
@@ -120,8 +120,8 @@ def test_same_approver_does_not_count_twice(
     monkeypatch: pytest.MonkeyPatch,
     base_dict: dict,
 ) -> None:
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
-    monkeypatch.setenv("AGENTSHIELD_PERMIT_SECRET", "permit-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_PERMIT_SECRET", "permit-secret")
     contract = _approval_contract(base_dict)
     events_path = tmp_path / "events.jsonl"
     proxy = _build_proxy(contract, events_path)
@@ -157,8 +157,8 @@ def test_quorum_reached_allows_execution_through_existing_override_path(
     monkeypatch: pytest.MonkeyPatch,
     base_dict: dict,
 ) -> None:
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
-    monkeypatch.setenv("AGENTSHIELD_PERMIT_SECRET", "permit-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_PERMIT_SECRET", "permit-secret")
     contract = _approval_contract(base_dict)
     events_path = tmp_path / "events.jsonl"
     proxy = _build_proxy(contract, events_path)
@@ -214,8 +214,8 @@ def test_expired_request_cannot_be_approved_and_is_recreated_on_retry(
     monkeypatch: pytest.MonkeyPatch,
     base_dict: dict,
 ) -> None:
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
-    monkeypatch.setenv("AGENTSHIELD_PERMIT_SECRET", "permit-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_PERMIT_SECRET", "permit-secret")
     contract = _approval_contract(base_dict)
     events_path = tmp_path / "events.jsonl"
     proxy = _build_proxy(contract, events_path)

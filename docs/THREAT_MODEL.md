@@ -17,7 +17,7 @@
 
 ## Trust Assumptions
 
-- `AGENTSHIELD_TOKEN_SECRET` is isolated from the agent runtime environment.
+- `STIPUL_TOKEN_SECRET` is isolated from the agent runtime environment.
 - Permit validation secrets stay in trusted operator-controlled environments.
 - Operators preserve exported evidence bundles after creation.
 - Wrapper coverage claims only apply when `wrapper_log.jsonl` is present and trustworthy.
