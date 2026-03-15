@@ -54,7 +54,7 @@ Use `--redact` to emit `redacted_events.jsonl` instead of copying `events.jsonl`
 
 `--siem-out` writes a downstream SIEM-friendly JSONL projection derived from the authoritative `events.jsonl` file on disk. It does not create a second Chronicle authority or a second event ledger.
 
-`--timestamp-rfc3161 <tsa-url>` submits the deterministic non-redacted export bundle hash to an RFC 3161 timestamp authority and writes a receipt at `<out-dir>/rfc3161_receipt.json`. This is additive only. It does not change Seal verification, which remains bound to `events.jsonl`.
+`--timestamp-rfc3161 <tsa-url>` submits the deterministic non-redacted export bundle hash to an RFC 3161 timestamp authority and writes a receipt at `<out-dir>/rfc3161_receipt.json`. This is additive only. It does not change Chronicle verification of `events.jsonl`.
 
 `--timestamp-rfc3161` is incompatible with `--redact`.
 
@@ -78,9 +78,9 @@ The SIEM manifest includes:
 - `applied_filters`
 - source identity fields such as `source_session_id` and `source_contract_hash`
 
-SIEM output is additive only. Seal verification still applies to the original `events.jsonl`, not to the downstream SIEM projection.
+SIEM output is additive only. Chronicle verification still applies to the original `events.jsonl`, not to the downstream SIEM projection.
 
-RFC 3161 timestamping is additive only. It timestamps the export bundle `top_level_sha256` from `manifest.json`, not `events.jsonl` directly, and does not replace local Seal verification.
+RFC 3161 timestamping is additive only. It timestamps the export bundle `top_level_sha256` from `manifest.json`, not `events.jsonl` directly, and does not replace local Chronicle verification.
 
 Exit codes:
 

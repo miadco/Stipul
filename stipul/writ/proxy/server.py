@@ -50,6 +50,8 @@ from stipul.writ.proxy.session import SessionState
 from stipul.writ.proxy.session_lock import FileLock, acquire_session_lock, release_session_lock
 from stipul.writ.proxy.startup import check_secret_isolation
 from stipul.chronicle.signing.keys import load_or_create_keypair
+from stipul.seal.builder import build_session_seal, seal_path, write_seal
+from stipul.seal.signer import sign_seal
 from stipul.charter.token.mint import mint_token
 from stipul.utils.canonical import canonical_json_bytes, compute_prev_hash
 
@@ -309,6 +311,7 @@ class ProxyServer:
     active_breakglass: BreakGlassEvent | None = None
     max_delegation_chain_depth: int = DEFAULT_MAX_DELEGATION_CHAIN_DEPTH
     _control_sidecar: ControlSidecar | None = field(default=None, init=False, repr=False)
+    _seal_written: bool = field(default=False, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self._tool_calls_made = 0
@@ -344,10 +347,27 @@ class ProxyServer:
 
     def close(self) -> None:
         self.stop_control_sidecar()
-        if self.session_lock is None:
-            return
-        release_session_lock(self.session_lock)
-        self.session_lock = None
+        seal_error: Exception | None = None
+        if not self._seal_written:
+            attestation = self.event_logger.last_attestation
+            if attestation is not None:
+                try:
+                    seal = build_session_seal(attestation, self.event_logger.store.path)
+                    seal["signature"] = sign_seal(seal, self.event_logger.signing_key.private_key)
+                    write_seal(
+                        seal_path(self.event_logger.store.path.parent),
+                        seal,
+                    )
+                    self._seal_written = True
+                except Exception as exc:  # pragma: no cover - exercised through callers
+                    seal_error = exc
+
+        if self.session_lock is not None:
+            release_session_lock(self.session_lock)
+            self.session_lock = None
+
+        if seal_error is not None:
+            raise seal_error
 
     def start_control_sidecar(self, *, port: int = 0) -> str:
         if self._control_sidecar is None:

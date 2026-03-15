@@ -1,7 +1,7 @@
 # Stipul Shipped State
 
 ## What Stipul Is
-Stipul is a policy-enforced execution boundary for agent tool use. It lets operators define Charter policy, enforce that policy at the Writ boundary, record authoritative evidence in Chronicle, and verify the resulting evidence with Seal.
+Stipul is a policy-enforced execution boundary for agent tool use. It lets operators define Charter policy, enforce that policy at the Writ boundary, record authoritative evidence in Chronicle, and verify that evidence through Chronicle verification plus additive Seal status.
 
 ## Canonical Architecture
 Writ enforces the Charter, records every decision in the Chronicle, and produces a cryptographic Seal.
@@ -57,7 +57,7 @@ Writ enforces the Charter, records every decision in the Chronicle, and produces
 
 ## Current Product Surfaces
 - Charter validation: `stipul lint-contract`
-- Seal verification: `stipul verify`
+- Chronicle verification + Seal status: `stipul verify`
 - Evidence export: `stipul export`
 - SIEM export: `stipul export --siem-out ...`
 - Trace simulation: `stipul simulate`
@@ -83,7 +83,8 @@ Writ enforces the Charter, records every decision in the Chronicle, and produces
 ## Evidence Model
 - `events.jsonl` is the sole authoritative evidence source.
 - Chronicle writes authoritative evidence to `events.jsonl`.
-- Seal verification applies to the authoritative `events.jsonl` stream.
+- Chronicle verification applies to the authoritative `events.jsonl` stream.
+- `seal.json` is an additive session-sidecar Seal bound to the authoritative `events.jsonl` stream.
 - Derived outputs remain downstream only:
   - `decisions.jsonl`
   - `summary.json`

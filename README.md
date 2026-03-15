@@ -171,9 +171,9 @@ Required environment variables:
 Operator notes:
 
 - `scan` is heuristic, deterministic, and read-only. It never imports scanned modules, executes code, or makes network calls.
-- `verify` proves signed-chain integrity for the authoritative `events.jsonl` stream.
+- `verify` proves Chronicle signed-chain integrity for the authoritative `events.jsonl` stream and reports additive session Seal status from `seal.json` when present.
 - `export` produces a shareable evidence bundle. Use `--redact` when you need to remove metadata leaf values from `events.jsonl`, and `--scan-report` when you want to bundle prior scanner output. Its manifest `exported_at` is derived from session artifacts so repeated exports of the same inputs stay deterministic.
-- `export --timestamp-rfc3161 <tsa-url>` adds an RFC 3161 receipt beside the export bundle manifest for the deterministic non-redacted bundle hash. This is downstream timestamp proof only; Seal verification still applies to `events.jsonl`.
+- `export --timestamp-rfc3161 <tsa-url>` adds an RFC 3161 receipt beside the export bundle manifest for the deterministic non-redacted bundle hash. This is downstream timestamp proof only; it does not replace Chronicle verification of `events.jsonl`.
 - `gateway mcp` runs the existing Writ enforcement core over MCP stdio. The tool catalog is still caller-supplied; the shipped `stipul.examples.echo_runtime:build_runtime` is only a minimal first-run runtime.
 - `--control-port` starts the existing loopback operator sidecar in the same process. The printed URL is local-only and is the best live control surface when the gateway process already holds the session lock.
 - Trust remains bounded: response payloads are not inspected, agent filesystem writes are not monitored, and coverage claims depend on wrapper logging when `wrapper_log.jsonl` is present.

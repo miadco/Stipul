@@ -15,6 +15,7 @@ from stipul.cli.io import ensure_session_dir, read_json, write_json
 from stipul.exceptions import ContractValidationError
 from stipul.charter.contract.schema import Contract
 from stipul.chronicle.signing.verifier import print_verification_result, verify_chain
+from stipul.seal.verifier import verify_seal
 
 
 def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -48,7 +49,7 @@ def _load_public_key(path: Path) -> Ed25519PublicKey:
     return key
 
 
-def _build_report(chain_result: Any) -> dict[str, Any]:
+def _build_report(chain_result: Any, *, seal_status: str) -> dict[str, Any]:
     break_point: dict[str, int] | None = None
     if chain_result.first_failure_sequence_id is not None:
         break_point = {"first_failure_sequence_id": chain_result.first_failure_sequence_id}
@@ -62,6 +63,7 @@ def _build_report(chain_result: Any) -> dict[str, Any]:
         "failures": [asdict(failure) for failure in chain_result.failures],
         "first_failure_sequence_id": chain_result.first_failure_sequence_id,
         "signed_event_count": chain_result.signed_event_count,
+        "seal_status": seal_status,
         "total_events": chain_result.signed_event_count + chain_result.unsigned_count,
         "unsigned_count": chain_result.unsigned_count,
         "verifiable_up_to_sequence_id": chain_result.verifiable_up_to_sequence_id,
@@ -76,8 +78,10 @@ def run(args: argparse.Namespace) -> int:
         events_path = session_dir / "events.jsonl"
 
         chain_result = verify_chain(events_path, public_key, contract)
-        report = _build_report(chain_result)
+        seal_result = verify_seal(session_dir, public_key, contract)
+        report = _build_report(chain_result, seal_status=seal_result.status)
         print(print_verification_result(chain_result))
+        print(f"Seal: {seal_result.status}")
 
         if args.json_out:
             write_json(Path(args.json_out), report, pretty=True, sort_keys=True)
