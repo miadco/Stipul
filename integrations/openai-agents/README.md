@@ -103,6 +103,16 @@ This is a source-checkout-only demo path. It reuses the focused integration test
 
 The login-shell wrapper above is a documented workaround, not a resolved fix. In this repo environment, the plain non-login invocation `bash integrations/openai-agents/demo.sh` intermittently timed out during MCP initialize. See `integrations/openai-agents/TEST_PLAN.md` for the supported reviewer path.
 
+## Demo Output
+
+During source-checkout demo runs, you may see `Token secret isolation could not be verified. Ensure STIPUL_TOKEN_SECRET is not accessible to the agent process.` on stderr.
+
+This is expected in the local demo layout because the gateway is launched from the same source checkout and process tree as the calling integration client, so startup cannot verify the production isolation boundary.
+
+In production, the gateway and agent run in separate process trees, so token secret isolation is verifiable.
+
+This warning does not change enforcement decisions, Chronicle evidence writes, or `stipul verify` results.
+
 ## Test Instructions
 
 Run the focused integration test file:

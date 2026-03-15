@@ -126,6 +126,18 @@ This is a source-checkout-only demo path. It reuses the focused integration test
 
 The login-shell wrapper above is a documented workaround, not a resolved fix. In this repo environment, the plain non-login invocation `bash integrations/langgraph/demo.sh` intermittently times out during MCP initialize. See `integrations/langgraph/TEST_PLAN.md` for the supported reviewer path.
 
+## Demo Output
+
+During source-checkout demo runs, you may see `Token secret isolation could not be verified. Ensure STIPUL_TOKEN_SECRET is not accessible to the agent process.` on stderr.
+
+This is expected in the local demo layout because the gateway is launched from the same source checkout and process tree as the calling integration client, so startup cannot verify the production isolation boundary.
+
+In production, the gateway and agent run in separate process trees, so token secret isolation is verifiable.
+
+This warning does not change enforcement decisions, Chronicle evidence writes, or `stipul verify` results.
+
+LangGraph opens multiple MCP stdio sessions during the demo flow, so the warning may appear multiple times. That is expected.
+
 ## Test Instructions
 
 Run the focused integration test file:
