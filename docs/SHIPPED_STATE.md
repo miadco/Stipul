@@ -1,7 +1,7 @@
 # Stipul Shipped State
 
 ## What Stipul Is
-Stipul is a policy-enforced execution boundary for agent tool use. It lets operators define Charter policy, enforce that policy at the Writ boundary, record authoritative evidence in Chronicle, and verify that evidence through Chronicle verification plus additive Seal status.
+Stipul is an agent authorization and audit platform. It lets operators define Charter policy, enforce decisions through Writ, record authoritative evidence in the Chronicle, and verify that evidence through Chronicle verification plus additive Seal status.
 
 ## Canonical Architecture
 Writ enforces the Charter, records every decision in the Chronicle, and produces a cryptographic Seal.
