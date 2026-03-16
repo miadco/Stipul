@@ -1,5 +1,7 @@
 # Stipul CLI
 
+> Start with the [root README](../README.md) for the native demo and supported-path overview. This document is the command reference.
+
 Examples in this document use `stipul ...`.
 In a source checkout, the equivalent entry point is `.venv/bin/python -m stipul.cli.main ...`.
 Use whichever form matches the current environment.

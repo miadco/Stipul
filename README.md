@@ -13,12 +13,17 @@ See [demo/README.md](demo/README.md) for full details.
 This proves three enforcement outcomes through the real proxy path, a signed Chronicle, and a verified Seal.
 This does not prove framework integration, external API calls, or an operator UI.
 
+## Where to start
+- [Native demo](demo/README.md)
+- [Command reference](docs/CLI.md)
+- [Shipped state and boundaries](docs/SHIPPED_STATE.md)
+
 ## Supported paths
 Currently supported:
 
 - Native local demo: `demo/run.py`
-- OpenAI Agents SDK integration: `integrations/openai-agents/`
-- LangGraph integration: `integrations/langgraph/`
+- OpenAI Agents SDK integration: [`integrations/openai-agents/`](integrations/openai-agents/README.md)
+- LangGraph integration: [`integrations/langgraph/`](integrations/langgraph/README.md)
 
 This does not imply general framework coverage beyond the two listed integrations, an operator dashboard or UI, production deployment patterns, or cloud or hosted operation.
 
