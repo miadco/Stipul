@@ -1,3 +1,5 @@
+> Start with the [root README](../../README.md) for the native demo and supported-path overview.
+
 # LangGraph Integration
 
 ## What This Integration Is
