@@ -1,5 +1,9 @@
 # Stipul CLI
 
+Examples in this document use `stipul ...`.
+In a source checkout, the equivalent entry point is `.venv/bin/python -m stipul.cli.main ...`.
+Use whichever form matches the current environment.
+
 ## Commands
 
 ### `stipul lint-contract`
@@ -15,6 +19,122 @@ Exit codes:
 - `0`: no lint errors
 - `1`: lint errors present
 - `3`: unreadable file or schema validation failure
+
+### `stipul operator status`
+
+Show current operator status from the proxy health surface.
+
+```bash
+stipul operator status \
+  --session-dir /path/to/session \
+  --contract charter.yaml
+```
+
+Required arguments:
+
+- `--session-dir`: session directory containing `events.jsonl`
+- `--contract`: Charter policy file, preferably YAML
+
+Exit codes:
+
+- `0`: status printed
+- `3`: fatal input or runtime error
+
+### `stipul operator kill-switch enable`
+
+Enable the proxy kill switch and print the resulting status.
+
+```bash
+stipul operator kill-switch enable \
+  --session-dir /path/to/session \
+  --contract charter.yaml \
+  --by operator-1 \
+  --reason "manual stop"
+```
+
+Required arguments:
+
+- `--session-dir`: session directory containing `events.jsonl`
+- `--contract`: Charter policy file, preferably YAML
+- `--by`: non-empty operator identifier recorded with the state change
+- `--reason`: non-empty reason recorded with the state change
+
+Exit codes:
+
+- `0`: kill switch enabled and status printed
+- `3`: fatal input or runtime error
+
+### `stipul operator kill-switch disable`
+
+Disable the proxy kill switch and print the resulting status.
+
+```bash
+stipul operator kill-switch disable \
+  --session-dir /path/to/session \
+  --contract charter.yaml \
+  --by operator-1 \
+  --reason "resume traffic"
+```
+
+Required arguments:
+
+- `--session-dir`: session directory containing `events.jsonl`
+- `--contract`: Charter policy file, preferably YAML
+- `--by`: non-empty operator identifier recorded with the state change
+- `--reason`: non-empty reason recorded with the state change
+
+Exit codes:
+
+- `0`: kill switch disabled and status printed
+- `3`: fatal input or runtime error
+
+### `stipul operator approval status`
+
+Show current approval requests, optionally filtered by request ID.
+
+```bash
+stipul operator approval status \
+  --session-dir /path/to/session \
+  --contract charter.yaml
+```
+
+Required arguments:
+
+- `--session-dir`: session directory containing `events.jsonl`
+- `--contract`: Charter policy file, preferably YAML
+
+Optional arguments:
+
+- `--request-id`: show a single approval request
+
+Exit codes:
+
+- `0`: approval status printed
+- `3`: fatal input or runtime error
+
+### `stipul operator approval approve`
+
+Add an approval to an existing approval request and print the resulting approval status.
+
+```bash
+stipul operator approval approve \
+  --session-dir /path/to/session \
+  --contract charter.yaml \
+  --request-id <request-id> \
+  --by <64-hex-approver-id>
+```
+
+Required arguments:
+
+- `--session-dir`: session directory containing `events.jsonl`
+- `--contract`: Charter policy file, preferably YAML
+- `--request-id`: approval request ID
+- `--by`: 64-character hexadecimal approver ID
+
+Exit codes:
+
+- `0`: approval added or existing approval status printed
+- `3`: fatal input or runtime error
 
 ### `stipul verify`
 
