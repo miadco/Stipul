@@ -1,7 +1,34 @@
 # Stipul
-Stipul is a security enforcement layer for AI agent platforms. Operators define a contract before an agent runs, and every tool call is checked against that contract at the execution boundary. The operating model is sign -> enforce -> prove: define and sign constraints, enforce them at runtime, then produce evidence of what was allowed or denied.
+Stipul is an agent authorization and audit platform for tool-using systems. Operators define a Charter before an agent runs, and each tool call is evaluated at the execution boundary. Writ enforces the Charter, records every decision in the Chronicle, and produces a cryptographic Seal. Session artifacts can then be verified after execution against the Charter and signing material.
 
-## First Run
+## Native demo
+Run `python3 demo/run.py`.
+
+`Actions` shows the three tool calls and their enforcement outcomes.
+`Evidence` shows the Chronicle history rendered from the signed `events.jsonl` session log.
+`Proof` shows Chronicle verification and Seal validation for the preserved session.
+
+See [demo/README.md](demo/README.md) for full details.
+
+This proves three enforcement outcomes through the real proxy path, a signed Chronicle, and a verified Seal.
+This does not prove framework integration, external API calls, or an operator UI.
+
+## Supported paths
+Currently supported:
+
+- Native local demo: `demo/run.py`
+- OpenAI Agents SDK integration: `integrations/openai-agents/`
+- LangGraph integration: `integrations/langgraph/`
+
+This does not imply general framework coverage beyond the two listed integrations, an operator dashboard or UI, production deployment patterns, or cloud or hosted operation.
+
+## Quickstart
+```bash
+pip install -e ".[dev]"
+pytest
+```
+
+## Manual gateway flow
 YAML Charter is the preferred operator-facing format. JSON is still accepted, but the canonical first successful run is:
 
 ```bash
@@ -127,29 +154,7 @@ Child contracts can only restrict parent permissions, never expand them. `merge(
 | egress_allowlist  | intersection                     |
 | identity          | child may restrict, never loosen |
 
-## Quickstart
-```bash
-pip install -e ".[dev]"
-pytest
-```
-
-## Versioning And Release
-
-- `stipul.__version__` in `stipul/__init__.py` is the single version source of truth.
-- Packaging metadata derives the project version from that attribute.
-- Release notes begin in `CHANGELOG.md`.
-- Threat-model assumptions and trust boundaries are summarized in `docs/THREAT_MODEL.md`.
-
-Repeatable release build flow:
-
-```bash
-python -m build --no-isolation
-python -m twine check dist/*
-bash scripts/validate_dist.sh dist
-```
-
-The release workflow runs on `v*` tags, rebuilds the project from source, runs the full test and static-analysis gates, validates wheel and sdist installs in fresh virtual environments, and publishes artifact hashes alongside the built distributions.
-
+<!-- REVIEW: verify this is still current -->
 ## Operator Workflow
 Plain operator loop:
 
@@ -203,6 +208,23 @@ See `CHANGELOG.md`, `docs/THREAT_MODEL.md`, and `SECURITY.md` for release and tr
 
 ## Signing (Week 3)
 Contracts are designed for Ed25519 signing. `to_canonical_dict()` produces the signing input with lexicographically sorted keys, null values removed, and `signed_by` plus `parent_contract_id` excluded from signing scope. Signing implementation ships in Week 3.
+
+## Versioning And Release
+
+- `stipul.__version__` in `stipul/__init__.py` is the single version source of truth.
+- Packaging metadata derives the project version from that attribute.
+- Release notes begin in `CHANGELOG.md`.
+- Threat-model assumptions and trust boundaries are summarized in `docs/THREAT_MODEL.md`.
+
+Repeatable release build flow:
+
+```bash
+python -m build --no-isolation
+python -m twine check dist/*
+bash scripts/validate_dist.sh dist
+```
+
+The release workflow runs on `v*` tags, rebuilds the project from source, runs the full test and static-analysis gates, validates wheel and sdist installs in fresh virtual environments, and publishes artifact hashes alongside the built distributions.
 
 ## Project Status
 | Week | Scope                           | Status   |
