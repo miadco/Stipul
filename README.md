@@ -27,12 +27,9 @@ Currently supported:
 
 This does not imply general framework coverage beyond the two listed integrations, an operator dashboard or UI, production deployment patterns, or cloud or hosted operation.
 
-## Why Stipul exists
-Agents can read, write, delete, and send data in ways that have real consequences for users and organizations.
-A log written after the fact can explain an action, but it cannot stop an action that should have been denied.
-The missing control point is runtime authorization at the tool execution boundary, where the decision must happen before execution rather than after.
-Each decision also needs structured evidence that can be verified cryptographically instead of a free-form log line.
-That is the operational gap Stipul fills.
+## What problem this solves
+
+When an AI agent calls an API, writes to a database, or triggers a workflow, there is often no independent proof it was authorized to do so. Logs show what happened. They do not prove what was permitted. If you are building an agent, that means you have no reliable way to enforce boundaries at runtime, test policy changes safely, or explain why a specific action was allowed or denied. If you are deploying one, it means you have nothing that qualifies as evidence when a regulator, auditor, or customer asks how you know the agent stayed within policy. Stipul makes agent actions admissible as evidence: every tool call hits a deterministic policy boundary before execution, and every decision is recorded in a cryptographically signed chain that anyone can verify without trusting the system that produced it.
 
 ## Quickstart
 ```bash
