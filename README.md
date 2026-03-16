@@ -22,6 +22,13 @@ Currently supported:
 
 This does not imply general framework coverage beyond the two listed integrations, an operator dashboard or UI, production deployment patterns, or cloud or hosted operation.
 
+## Why Stipul exists
+Agents can read, write, delete, and send data in ways that have real consequences for users and organizations.
+A log written after the fact can explain an action, but it cannot stop an action that should have been denied.
+The missing control point is runtime authorization at the tool execution boundary, where the decision must happen before execution rather than after.
+Each decision also needs structured evidence that can be verified cryptographically instead of a free-form log line.
+That is the operational gap Stipul fills.
+
 ## Quickstart
 ```bash
 pip install -e ".[dev]"
