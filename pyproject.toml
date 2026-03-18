@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "stipul"
 dynamic = ["version"]
-description = "Policy and contract utilities for agent safety."
+description = "Deterministic enforcement and cryptographic evidence for AI agent actions"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

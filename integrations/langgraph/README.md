@@ -126,7 +126,7 @@ The demo creates fresh artifacts under:
 
 This is a source-checkout-only demo path. It reuses the focused integration test nodes to exercise the real LangGraph MCP client boundary and then runs `stipul verify` over the resulting evidence.
 
-The login-shell wrapper above is a documented workaround, not a resolved fix. In this repo environment, the plain non-login invocation `bash integrations/langgraph/demo.sh` intermittently times out during MCP initialize. See `integrations/langgraph/TEST_PLAN.md` for the supported reviewer path.
+Run from repo root: `bash integrations/langgraph/demo.sh`. See `integrations/langgraph/TEST_PLAN.md` for the supported reviewer path.
 
 ## Demo Output
 
@@ -176,7 +176,7 @@ Optional targeted checks used for this work:
 - This does not yet prove SSE or HTTP transport support on the Stipul side.
 - `create_react_agent` was inspected but is not exercised in this proof path.
 - The runtime factory in this directory is intentionally small and deterministic. It is not a general runtime framework.
-- OL-008 — demo invocation sensitivity: plain non-login `bash integrations/langgraph/demo.sh` intermittently times out during MCP initialize; current supported workaround is `bash -lc 'bash integrations/langgraph/demo.sh'`; root cause not yet isolated.
+- OL-008 — run from repo root: `bash integrations/langgraph/demo.sh`.
 
 ## Proven
 

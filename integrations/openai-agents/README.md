@@ -103,7 +103,7 @@ The demo creates fresh artifacts under:
 
 This is a source-checkout-only demo path. It reuses the focused integration test nodes to exercise the real MCP boundary and then runs `stipul verify` over the resulting evidence.
 
-The login-shell wrapper above is a documented workaround, not a resolved fix. In this repo environment, the plain non-login invocation `bash integrations/openai-agents/demo.sh` intermittently timed out during MCP initialize. See `integrations/openai-agents/TEST_PLAN.md` for the supported reviewer path.
+Run from repo root: `bash integrations/openai-agents/demo.sh`. See `integrations/openai-agents/TEST_PLAN.md` for the supported reviewer path.
 
 ## Demo Output
 
@@ -150,7 +150,7 @@ Optional targeted checks used for this work:
 - This does not yet prove production deployment hardening.
 - This does not yet prove SSE or HTTP transport support on the Stipul side.
 - The runtime factory in this directory is intentionally small and deterministic. It is not a general runtime framework.
-- OL-007 — demo invocation sensitivity: plain non-login `bash integrations/openai-agents/demo.sh` intermittently times out during MCP initialize; current supported workaround is `bash -lc 'bash integrations/openai-agents/demo.sh'`; root cause not yet isolated.
+- OL-007 — run from repo root: `bash integrations/openai-agents/demo.sh`.
 
 ## Proven
 
