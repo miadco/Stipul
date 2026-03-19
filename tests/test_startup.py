@@ -4,7 +4,7 @@ import logging
 
 import pytest
 
-from agentshield.proxy.startup import (
+from stipul.writ.proxy.startup import (
     SecretIsolationError,
     check_secret_isolation,
 )
@@ -17,7 +17,7 @@ def test_secret_in_agent_environment_refuses_startup(caplog) -> None:
         check_secret_isolation(
             agent_env={
                 "PATH": "/usr/bin",
-                "AGENTSHIELD_TOKEN_SECRET": "super-secret",
+                "STIPUL_TOKEN_SECRET": "super-secret",
             }
         )
 
@@ -76,7 +76,7 @@ def test_proc_inspection_error_logs_warning_and_proceeds(monkeypatch, caplog) ->
     def _boom(_pid: int):
         raise OSError("permission denied")
 
-    monkeypatch.setattr("agentshield.proxy.startup._read_linux_proc_environ", _boom)
+    monkeypatch.setattr("stipul.writ.proxy.startup._read_linux_proc_environ", _boom)
 
     result = check_secret_isolation(agent_pid=1234)
 

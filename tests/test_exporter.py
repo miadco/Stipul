@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from agentshield.exporter import export_session_bundle
+from stipul.seal.exporter import export_session_bundle
 from tests.cli_support import create_signed_session
 
 

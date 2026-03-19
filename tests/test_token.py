@@ -4,8 +4,8 @@ import base64
 import json
 import re
 
-from agentshield.token.mint import mint_token
-from agentshield.token.validate import validate_token
+from stipul.charter.token.mint import mint_token
+from stipul.charter.token.validate import validate_token
 
 
 def _decode_payload(token: str) -> dict:
@@ -16,7 +16,7 @@ def _decode_payload(token: str) -> dict:
 
 
 def test_valid_token_round_trip(monkeypatch, contract):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
 
     token = mint_token(
         tool_name="filesystem.write",
@@ -32,7 +32,7 @@ def test_valid_token_round_trip(monkeypatch, contract):
 
 
 def test_minted_token_contains_nonce_field(monkeypatch, contract):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
 
     token = mint_token(
         tool_name="filesystem.write",
@@ -55,7 +55,7 @@ def test_missing_token_returns_missing_token():
 
 
 def test_wrong_tool_returns_wrong_tool(monkeypatch, contract):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
 
     token = mint_token(
         tool_name="filesystem.write",
@@ -71,7 +71,7 @@ def test_wrong_tool_returns_wrong_tool(monkeypatch, contract):
 
 
 def test_tampered_token_returns_invalid_signature(monkeypatch, contract):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
 
     token = mint_token(
         tool_name="filesystem.write",
@@ -98,7 +98,7 @@ def test_tampered_token_returns_invalid_signature(monkeypatch, contract):
 
 
 def test_expired_token_returns_expired(monkeypatch, contract):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
 
     token = mint_token(
         tool_name="filesystem.write",
@@ -109,7 +109,7 @@ def test_expired_token_returns_expired(monkeypatch, contract):
     )
     payload = _decode_payload(token)
 
-    monkeypatch.setattr("agentshield.token.validate._utc_now_epoch", lambda: payload["exp"])
+    monkeypatch.setattr("stipul.charter.token.validate._utc_now_epoch", lambda: payload["exp"])
 
     is_valid, reason = validate_token(token, "filesystem.write")
     assert is_valid is False

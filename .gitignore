@@ -5,6 +5,7 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 agentshield.egg-info/
+stipul.egg-info/
 build/
 dist/
 events.jsonl

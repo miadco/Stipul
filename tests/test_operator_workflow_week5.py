@@ -5,13 +5,13 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from agentshield.contract.schema import Contract
-from agentshield.contract.utils import compute_contract_hash
-from agentshield.events.decisions import generate_decisions, write_decisions
-from agentshield.events.logger import EventLogger
-from agentshield.events.store import EventStore
-from agentshield.events.summary import build_summary, write_summary_json
-from agentshield.signing.keys import generate_keypair
+from stipul.charter.contract.schema import Contract
+from stipul.charter.contract.utils import compute_contract_hash
+from stipul.chronicle.events.decisions import generate_decisions, write_decisions
+from stipul.chronicle.events.logger import EventLogger
+from stipul.chronicle.events.store import EventStore
+from stipul.chronicle.events.summary import build_summary, write_summary_json
+from stipul.chronicle.signing.keys import generate_keypair
 from tests.cli_support import DEFAULT_SESSION_ID, load_base_contract_dict, run_cli
 
 
@@ -32,7 +32,7 @@ def test_operator_workflow_week5(tmp_path: Path) -> None:
     events_path = session_dir / "events.jsonl"
     decisions_path = session_dir / "decisions.jsonl"
     summary_path = session_dir / "summary.json"
-    keypair = generate_keypair(tmp_path / ".agentshield" / "keys")
+    keypair = generate_keypair(tmp_path / ".stipul" / "keys")
 
     logger = EventLogger(
         store=EventStore(events_path),

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from agentshield.scanner import MCPScanner
+from stipul.scanner import MCPScanner
 
 
 def test_scan_core_finds_bounded_high_signal_issues(tmp_path: Path) -> None:

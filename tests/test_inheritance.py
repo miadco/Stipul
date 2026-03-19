@@ -1,19 +1,19 @@
 from __future__ import annotations
 
 import copy
-import json
 import uuid
 from pathlib import Path
 
 import pytest
+import yaml
 
-from agentshield.contract.inheritance import (
+from stipul.charter.contract.inheritance import (
     ContractInheritanceError,
     ContractLayer,
     InheritanceResolver,
 )
-from agentshield.contract.schema import Contract
-from agentshield.contract.templates import (
+from stipul.charter.contract.schema import Contract
+from stipul.charter.contract.templates import (
     admin_agent_template,
     read_only_agent_template,
     sandbox_dev_template,
@@ -132,11 +132,11 @@ def test_identity_mismatch_raises_contract_inheritance_error(base_dict):
 
 def test_load_layers_respects_order_and_skips_none(tmp_path: Path, base_dict):
     resolver = InheritanceResolver()
-    base_path = tmp_path / "base.json"
-    session_path = tmp_path / "session.json"
-    base_path.write_text(json.dumps(base_dict), encoding="utf-8")
+    base_path = tmp_path / "base.yaml"
+    session_path = tmp_path / "session.yaml"
+    base_path.write_text(yaml.safe_dump(base_dict, sort_keys=False), encoding="utf-8")
     session_path.write_text(
-        json.dumps(_child_dict(base_dict, allowed_tools=["web.search"])),
+        yaml.safe_dump(_child_dict(base_dict, allowed_tools=["web.search"]), sort_keys=False),
         encoding="utf-8",
     )
 

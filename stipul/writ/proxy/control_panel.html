@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Stipul Local Operator Panel</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4efe6;
+        --panel: #fffaf2;
+        --border: #d8cbb7;
+        --ink: #1f1a14;
+        --muted: #6f6253;
+        --danger: #8f2d1f;
+        --danger-weak: #f8dbd6;
+        --safe: #1f5b3b;
+        --safe-weak: #dcefe4;
+        --accent: #1d4e89;
+        --accent-weak: #d9e7f6;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        background:
+          radial-gradient(circle at top, rgba(29, 78, 137, 0.1), transparent 35%),
+          linear-gradient(180deg, #f7f1e7 0%, var(--bg) 100%);
+        color: var(--ink);
+      }
+
+      main {
+        max-width: 34rem;
+        margin: 0 auto;
+        padding: 1rem;
+        display: grid;
+        gap: 1rem;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 1rem;
+        padding: 1rem;
+        box-shadow: 0 0.5rem 1.5rem rgba(31, 26, 20, 0.06);
+      }
+
+      .banner {
+        background: var(--accent-weak);
+        border-color: rgba(29, 78, 137, 0.2);
+      }
+
+      h1,
+      h2,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 1.35rem;
+      }
+
+      h2 {
+        font-size: 1rem;
+        margin-bottom: 0.75rem;
+      }
+
+      .subtle {
+        color: var(--muted);
+        font-size: 0.95rem;
+        line-height: 1.45;
+      }
+
+      .state-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        border-radius: 999px;
+        padding: 0.45rem 0.75rem;
+        font-weight: 700;
+        margin-bottom: 0.85rem;
+      }
+
+      .state-on {
+        background: var(--danger-weak);
+        color: var(--danger);
+      }
+
+      .state-off {
+        background: var(--safe-weak);
+        color: var(--safe);
+      }
+
+      dl {
+        margin: 0;
+        display: grid;
+        gap: 0.75rem;
+      }
+
+      dt {
+        color: var(--muted);
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      dd {
+        margin: 0.15rem 0 0;
+        font-size: 1rem;
+        word-break: break-word;
+      }
+
+      .health-line {
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+
+      label {
+        display: grid;
+        gap: 0.35rem;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+
+      input {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 0.85rem;
+        padding: 0.9rem 1rem;
+        font: inherit;
+        color: var(--ink);
+        background: #fff;
+      }
+
+      .button-row {
+        display: grid;
+        gap: 0.75rem;
+        margin-top: 1rem;
+      }
+
+      button {
+        width: 100%;
+        border: none;
+        border-radius: 0.9rem;
+        padding: 0.95rem 1rem;
+        font: inherit;
+        font-weight: 700;
+        color: #fff;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+
+      button:disabled {
+        opacity: 0.55;
+        cursor: wait;
+      }
+
+      .enable {
+        background: var(--danger);
+      }
+
+      .disable {
+        background: var(--safe);
+      }
+
+      .result {
+        min-height: 3.2rem;
+        display: grid;
+        align-content: center;
+        gap: 0.2rem;
+      }
+
+      .result-ok {
+        color: var(--safe);
+      }
+
+      .result-error {
+        color: var(--danger);
+      }
+
+      @media (min-width: 42rem) {
+        main {
+          padding: 1.5rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="panel banner">
+        <h1>Stipul Local Operator Panel</h1>
+        <p class="subtle">
+          Local operator surface, loopback only. This panel talks to the proxy sidecar on
+          <code>127.0.0.1</code> and is only useful from the same device running the proxy.
+        </p>
+      </section>
+
+      <section class="panel">
+        <div id="statePill" class="state-pill state-off">Kill switch inactive</div>
+        <h2>Operator Status</h2>
+        <dl>
+          <div>
+            <dt>Updated At</dt>
+            <dd id="updatedAt">-</dd>
+          </div>
+          <div>
+            <dt>Updated By</dt>
+            <dd id="updatedBy">-</dd>
+          </div>
+          <div>
+            <dt>Reason</dt>
+            <dd id="reason">-</dd>
+          </div>
+        </dl>
+        <p id="healthLine" class="health-line">Proxy health: loading...</p>
+      </section>
+
+      <section class="panel">
+        <h2>Kill Switch Control</h2>
+        <label>
+          By
+          <input id="byInput" name="by" type="text" placeholder="operator@example.com" />
+        </label>
+        <label style="margin-top: 0.75rem;">
+          Reason
+          <input
+            id="reasonInput"
+            name="reason"
+            type="text"
+            placeholder="operator_kill_switch_enabled"
+          />
+        </label>
+        <div class="button-row">
+          <button id="enableButton" class="enable" type="button">Enable Kill Switch</button>
+          <button id="disableButton" class="disable" type="button">Disable Kill Switch</button>
+        </div>
+      </section>
+
+      <section class="panel result">
+        <h2>Last Result</h2>
+        <p id="resultText" class="subtle">No action sent yet.</p>
+      </section>
+    </main>
+
+    <script>
+      const elements = {
+        statePill: document.getElementById("statePill"),
+        updatedAt: document.getElementById("updatedAt"),
+        updatedBy: document.getElementById("updatedBy"),
+        reason: document.getElementById("reason"),
+        healthLine: document.getElementById("healthLine"),
+        resultText: document.getElementById("resultText"),
+        byInput: document.getElementById("byInput"),
+        reasonInput: document.getElementById("reasonInput"),
+        enableButton: document.getElementById("enableButton"),
+        disableButton: document.getElementById("disableButton"),
+      };
+      const endpointMap = {
+        enable: "/operator/kill-switch/enable",
+        disable: "/operator/kill-switch/disable",
+      };
+
+      function showValue(value) {
+        return value === null || value === undefined || value === "" ? "-" : String(value);
+      }
+
+      function setBusy(isBusy) {
+        elements.enableButton.disabled = isBusy;
+        elements.disableButton.disabled = isBusy;
+      }
+
+      function renderStatus(status) {
+        const active = Boolean(status.kill_switch_active);
+        elements.statePill.textContent = active ? "Kill switch active" : "Kill switch inactive";
+        elements.statePill.className = `state-pill ${active ? "state-on" : "state-off"}`;
+        elements.updatedAt.textContent = showValue(status.operator_updated_at);
+        elements.updatedBy.textContent = showValue(status.operator_updated_by);
+        elements.reason.textContent = showValue(status.operator_reason);
+      }
+
+      function setResult(message, isError = false) {
+        elements.resultText.textContent = message;
+        elements.resultText.className = isError ? "result-error" : "result-ok";
+      }
+
+      async function refreshHealth() {
+        const response = await fetch("/health");
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "Unable to load proxy health");
+        }
+        elements.healthLine.textContent = `Proxy health: ${showValue(payload.status)}`;
+      }
+
+      async function refreshStatus() {
+        const response = await fetch("/operator/status");
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "Unable to load operator status");
+        }
+        renderStatus(payload);
+      }
+
+      async function toggle(action) {
+        const by = elements.byInput.value.trim();
+        const reason = elements.reasonInput.value.trim();
+
+        setBusy(true);
+        try {
+          const response = await fetch(endpointMap[action], {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ by, reason }),
+          });
+          const payload = await response.json();
+          if (!response.ok) {
+            throw new Error(payload.error || `Unable to ${action} kill switch`);
+          }
+          renderStatus(payload);
+          await refreshHealth();
+          setResult(
+            action === "enable"
+              ? "Kill switch enabled through the local sidecar."
+              : "Kill switch disabled through the local sidecar."
+          );
+        } catch (error) {
+          setResult(error.message || "Request failed", true);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function boot() {
+        setBusy(true);
+        try {
+          await Promise.all([refreshStatus(), refreshHealth()]);
+          setResult("Status loaded from the local sidecar.");
+        } catch (error) {
+          setResult(error.message || "Unable to load panel state", true);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      elements.enableButton.addEventListener("click", () => toggle("enable"));
+      elements.disableButton.addEventListener("click", () => toggle("disable"));
+      boot();
+    </script>
+  </body>
+</html>

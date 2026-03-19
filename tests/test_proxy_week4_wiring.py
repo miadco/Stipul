@@ -5,16 +5,16 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
-from agentshield.breakglass import BreakGlassManager
-from agentshield.contract.schema import Contract
-from agentshield.contract.utils import compute_contract_hash
-from agentshield.events.logger import EventLogger
-from agentshield.events.store import EventStore
-from agentshield.permits import PERMIT_SECRET_ENV, PermitManager
-from agentshield.proxy.server import ProxyServer
-from agentshield.proxy.session import SessionState
-from agentshield.signing.keys import generate_keypair
-from agentshield.token.validate import validate_token
+from stipul.writ.breakglass import BreakGlassManager
+from stipul.charter.contract.schema import Contract
+from stipul.charter.contract.utils import compute_contract_hash
+from stipul.chronicle.events.logger import EventLogger
+from stipul.chronicle.events.store import EventStore
+from stipul.charter.permits import PERMIT_SECRET_ENV, PermitManager
+from stipul.writ.proxy.server import ProxyServer
+from stipul.writ.proxy.session import SessionState
+from stipul.chronicle.signing.keys import generate_keypair
+from stipul.charter.token.validate import validate_token
 
 _SESSION_ID = "11111111-1111-1111-1111-111111111111"
 _PERMIT_SECRET = b"permit-secret"
@@ -29,7 +29,7 @@ def _read_events(path: Path) -> list[dict]:
 
 
 def _build_proxy(contract: Contract, events_path: Path, **kwargs) -> ProxyServer:
-    keypair = generate_keypair(events_path.parent / ".agentshield" / "keys")
+    keypair = generate_keypair(events_path.parent / ".stipul" / "keys")
     logger = EventLogger(
         store=EventStore(events_path),
         session_id=_SESSION_ID,
@@ -52,7 +52,7 @@ def _now() -> datetime:
 
 
 def test_permit_overrides_not_in_contract_without_bypassing_budget(tmp_path: Path, monkeypatch, base_dict):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     monkeypatch.setenv(PERMIT_SECRET_ENV, _PERMIT_SECRET.decode("utf-8"))
     payload = dict(base_dict)
     payload["tool_risk_classes"] = dict(base_dict["tool_risk_classes"])
@@ -105,7 +105,7 @@ def test_permit_overrides_not_in_contract_without_bypassing_budget(tmp_path: Pat
 
 
 def test_breakglass_overrides_permit_priority(tmp_path: Path, monkeypatch, base_dict):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     monkeypatch.setenv(PERMIT_SECRET_ENV, _PERMIT_SECRET.decode("utf-8"))
     payload = dict(base_dict)
     payload["tool_risk_classes"] = dict(base_dict["tool_risk_classes"])
@@ -185,7 +185,7 @@ def test_active_permits_require_env_secret(tmp_path: Path, base_dict):
 
 
 def test_wrong_env_secret_rejects_permit_and_logs_reason(tmp_path: Path, monkeypatch, caplog, base_dict):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     contract = _contract_with_debug_tool(base_dict)
     permit_manager = PermitManager(contract, _PERMIT_SECRET, _SESSION_ID)
     now = _now()
@@ -222,7 +222,7 @@ def test_wrong_env_secret_rejects_permit_and_logs_reason(tmp_path: Path, monkeyp
 
 
 def test_budget_exhaustion_overrides_breakglass(tmp_path: Path, monkeypatch, contract):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     breakglass = BreakGlassManager(contract).trigger(
         triggered_by_hex64=_HEX_B,
         reason="Need emergency access to all tools",

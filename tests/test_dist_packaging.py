@@ -32,6 +32,65 @@ def test_built_wheel_and_sdist_install_and_expose_cli(tmp_path: Path) -> None:
     _assert_artifact_smoke(tmp_path, env, sdist_path, "sdist-venv")
 
 
+def test_built_wheel_top_level_help_runs_in_isolated_no_deps_venv(tmp_path: Path) -> None:
+    dist_dir = tmp_path / "dist"
+    env = {
+        **os.environ,
+        "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+        "PIP_CACHE_DIR": str(tmp_path / "pip-cache"),
+    }
+
+    subprocess.run(
+        [sys.executable, "-m", "build", "--no-isolation", "--outdir", str(dist_dir)],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    wheel_path = next(dist_dir.glob("*.whl"))
+    venv_dir = tmp_path / "isolated-wheel-venv"
+
+    subprocess.run(
+        [sys.executable, "-m", "venv", str(venv_dir)],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    python_bin = venv_dir / "bin" / "python"
+    stipul_bin = venv_dir / "bin" / "stipul"
+
+    subprocess.run(
+        [
+            str(python_bin),
+            "-m",
+            "pip",
+            "install",
+            "--no-deps",
+            str(wheel_path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    result = subprocess.run(
+        [str(stipul_bin), "--help"],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    assert result.returncode == 0
+    assert "usage: stipul" in result.stdout
+    assert "history" in result.stdout
+
+
 def _assert_artifact_smoke(
     tmp_path: Path,
     env: dict[str, str],
@@ -48,7 +107,7 @@ def _assert_artifact_smoke(
     )
 
     python_bin = venv_dir / "bin" / "python"
-    agentshield_bin = venv_dir / "bin" / "agentshield"
+    agentshield_bin = venv_dir / "bin" / "stipul"
 
     subprocess.run(
         [
@@ -79,10 +138,10 @@ def _assert_artifact_smoke(
             env=env,
         )
         assert result.returncode == 0
-        assert "usage: agentshield" in result.stdout
+        assert "usage: stipul" in result.stdout
 
     version_result = subprocess.run(
-        [str(python_bin), "-c", "import agentshield; print(agentshield.__version__)"],
+        [str(python_bin), "-c", "import stipul; print(stipul.__version__)"],
         check=False,
         capture_output=True,
         text=True,

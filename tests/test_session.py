@@ -5,17 +5,17 @@ from pathlib import Path
 
 import pytest
 
-from agentshield.contract.utils import compute_contract_hash
-from agentshield.events.logger import EventLogger, EventWriteError
-from agentshield.events.store import EventStore
-from agentshield.proxy.server import ProxyServer
-from agentshield.proxy.session_lock import (
+from stipul.charter.contract.utils import compute_contract_hash
+from stipul.chronicle.events.logger import EventLogger, EventWriteError
+from stipul.chronicle.events.store import EventStore
+from stipul.writ.proxy.server import ProxyServer
+from stipul.writ.proxy.session_lock import (
     SessionLockError,
     acquire_session_lock,
     release_session_lock,
 )
-from agentshield.signing.keys import generate_keypair
-from agentshield.utils.canonical import compute_prev_hash
+from stipul.chronicle.signing.keys import generate_keypair
+from stipul.utils.canonical import compute_prev_hash
 
 _SESSION_ID = "11111111-1111-1111-1111-111111111111"
 _OTHER_SESSION_ID = "99999999-9999-9999-9999-999999999999"
@@ -34,7 +34,7 @@ def _event_kwargs(reason: str = "risk_class") -> dict:
 
 
 def _build_logger(tmp_path: Path, contract, session_id: str = _SESSION_ID) -> EventLogger:
-    keypair = generate_keypair(tmp_path / ".agentshield" / "keys")
+    keypair = generate_keypair(tmp_path / ".stipul" / "keys")
     return EventLogger(
         store=EventStore(tmp_path / "events.jsonl"),
         session_id=session_id,
@@ -138,6 +138,54 @@ def test_proxy_second_instance_same_state_dir_rejected(
         proxy.close()
 
 
+def test_kill_switch_persists_and_reloads_in_same_state_dir(tmp_path: Path, contract) -> None:
+    first_proxy = ProxyServer(
+        contract=contract,
+        event_logger=_build_logger(tmp_path, contract),
+        session_id=_SESSION_ID,
+        state_dir=tmp_path,
+    )
+    first_proxy.set_kill_switch(
+        True,
+        updated_by="e" * 64,
+        reason="operator_kill_switch_enabled",
+    )
+
+    persisted_state = json.loads((tmp_path / "operator_state.json").read_text(encoding="utf-8"))
+    assert persisted_state["kill_switch_active"] is True
+    assert persisted_state["reason"] == "operator_kill_switch_enabled"
+
+    reloaded_proxy = ProxyServer(
+        contract=contract,
+        event_logger=_build_logger(tmp_path, contract),
+        session_id=_SESSION_ID,
+        state_dir=tmp_path,
+    )
+
+    payload = reloaded_proxy.health.payload()
+    assert payload["kill_switch_active"] is True
+    assert payload["operator_reason"] == "operator_kill_switch_enabled"
+    assert isinstance(payload["operator_updated_at"], str)
+
+    called = {"count": 0}
+
+    def forward_call(_request):
+        called["count"] += 1
+        return {"ok": True}
+
+    response = reloaded_proxy.handle_tool_call(
+        {"tool_name": "filesystem.write", "inputs": {"path": "out.txt", "content": "x"}},
+        forward_call,
+    )
+
+    assert response == {
+        "decision": "deny",
+        "reason": "kill_switch_active",
+        "tool_name": "filesystem.write",
+    }
+    assert called["count"] == 0
+
+
 def test_prev_unsigned_terminal_hash_present_on_genesis_when_unsigned_exists(
     tmp_path: Path, contract
 ) -> None:
@@ -179,7 +227,7 @@ def test_prev_unsigned_terminal_hash_absent_on_fresh_start(tmp_path: Path, contr
 def test_prev_unsigned_terminal_hash_absent_when_unsigned_was_in_renamed_file(
     tmp_path: Path, base_dict, monkeypatch
 ) -> None:
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     contract_path = tmp_path / "contract.json"
     _write_contract(contract_path, base_dict)
@@ -215,7 +263,7 @@ def test_prev_unsigned_terminal_hash_absent_when_unsigned_was_in_renamed_file(
 def test_genesis_includes_prev_chain_fields_when_prior_signed_session_is_renamed(
     tmp_path: Path, base_dict, monkeypatch
 ) -> None:
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     contract_path = tmp_path / "contract.json"
     _write_contract(contract_path, base_dict)

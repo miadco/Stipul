@@ -2,19 +2,19 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from agentshield.breakglass import BreakGlassManager
-from agentshield.contract.inheritance import ContractLayer, InheritanceResolver
-from agentshield.contract.schema import Contract
-from agentshield.contract.utils import compute_contract_hash
-from agentshield.detection.bypass import BypassDetector
-from agentshield.events.logger import EventLogger
-from agentshield.events.store import EventStore
-from agentshield.permits import PERMIT_SECRET_ENV, PermitManager
-from agentshield.proxy.server import ProxyServer
-from agentshield.signing.keys import generate_keypair
-from agentshield.simulation.simulator import PolicySimulator
-from agentshield.token.mint import mint_token
-from agentshield.wrapper.mcp_wrapper import handle_tool_call
+from stipul.writ.breakglass import BreakGlassManager
+from stipul.charter.contract.inheritance import ContractLayer, InheritanceResolver
+from stipul.charter.contract.schema import Contract
+from stipul.charter.contract.utils import compute_contract_hash
+from stipul.writ.detection.bypass import BypassDetector
+from stipul.chronicle.events.logger import EventLogger
+from stipul.chronicle.events.store import EventStore
+from stipul.charter.permits import PERMIT_SECRET_ENV, PermitManager
+from stipul.writ.proxy.server import ProxyServer
+from stipul.chronicle.signing.keys import generate_keypair
+from stipul.simulation.simulator import PolicySimulator
+from stipul.charter.token.mint import mint_token
+from stipul.writ.wrapper.mcp_wrapper import handle_tool_call
 
 _SESSION_ID = "11111111-1111-1111-1111-111111111111"
 _PERMIT_SECRET = b"permit-secret"
@@ -23,7 +23,7 @@ _HEX_B = "b" * 64
 
 
 def _build_proxy(contract: Contract, events_path: Path, **kwargs) -> ProxyServer:
-    keypair = generate_keypair(events_path.parent / ".agentshield" / "keys")
+    keypair = generate_keypair(events_path.parent / ".stipul" / "keys")
     logger = EventLogger(
         store=EventStore(events_path),
         session_id=_SESSION_ID,
@@ -53,7 +53,7 @@ def _contract_with_debug_tool(base_dict: dict) -> Contract:
 
 
 def test_permit_lifecycle(base_dict, tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     monkeypatch.setenv(PERMIT_SECRET_ENV, _PERMIT_SECRET.decode("utf-8"))
     contract = _contract_with_debug_tool(base_dict)
     now = _now()
@@ -111,7 +111,7 @@ def test_permit_lifecycle(base_dict, tmp_path: Path, monkeypatch):
 
 
 def test_breakglass_lifecycle(base_dict, tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     contract = _contract_with_debug_tool(base_dict)
     now = _now()
 
@@ -205,9 +205,9 @@ def test_inheritance_across_three_layers(base_dict):
 
 
 def test_bypass_detector_with_real_wrapper_log(tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     wrapper_log_path = tmp_path / "wrapper_log.jsonl"
-    monkeypatch.setenv("AGENTSHIELD_WRAPPER_LOG_PATH", str(wrapper_log_path))
+    monkeypatch.setenv("STIPUL_WRAPPER_LOG_PATH", str(wrapper_log_path))
     token = mint_token(
         tool_name="filesystem.write",
         scope="tool.execute",

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from agentshield.proxy.egress import check_egress
+from stipul.writ.proxy.egress import check_egress
 
 
 def test_egress_exact_domain_allowed(contract):

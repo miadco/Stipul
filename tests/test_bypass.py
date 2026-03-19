@@ -4,14 +4,14 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from agentshield.detection.bypass import BypassDetector, BypassGap, CoverageReport
-from agentshield.contract.utils import compute_contract_hash
-from agentshield.events.logger import EventLogger
-from agentshield.events.store import EventStore
-from agentshield.proxy.server import ProxyServer
-from agentshield.signing.keys import generate_keypair
-from agentshield.token.mint import mint_token
-from agentshield.wrapper.mcp_wrapper import handle_tool_call
+from stipul.writ.detection.bypass import BypassDetector, BypassGap, CoverageReport
+from stipul.charter.contract.utils import compute_contract_hash
+from stipul.chronicle.events.logger import EventLogger
+from stipul.chronicle.events.store import EventStore
+from stipul.writ.proxy.server import ProxyServer
+from stipul.chronicle.signing.keys import generate_keypair
+from stipul.charter.token.mint import mint_token
+from stipul.writ.wrapper.mcp_wrapper import handle_tool_call
 
 _SESSION_ID = "11111111-1111-1111-1111-111111111111"
 
@@ -27,9 +27,9 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
 
 
 def test_wrapper_writes_wrapper_log_jsonl(tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     wrapper_log_path = tmp_path / "wrapper_log.jsonl"
-    monkeypatch.setenv("AGENTSHIELD_WRAPPER_LOG_PATH", str(wrapper_log_path))
+    monkeypatch.setenv("STIPUL_WRAPPER_LOG_PATH", str(wrapper_log_path))
 
     token = mint_token(
         tool_name="filesystem.write",
@@ -267,11 +267,11 @@ def test_emit_gap_events_and_summary_fields():
 
 
 def test_detect_real_wrapper_and_proxy_match_with_canonical_hashing(tmp_path: Path, monkeypatch, contract):
-    monkeypatch.setenv("AGENTSHIELD_TOKEN_SECRET", "test-secret")
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     wrapper_log_path = tmp_path / "wrapper_log.jsonl"
-    monkeypatch.setenv("AGENTSHIELD_WRAPPER_LOG_PATH", str(wrapper_log_path))
+    monkeypatch.setenv("STIPUL_WRAPPER_LOG_PATH", str(wrapper_log_path))
     events_path = tmp_path / "events.jsonl"
-    keypair = generate_keypair(tmp_path / ".agentshield" / "keys")
+    keypair = generate_keypair(tmp_path / ".stipul" / "keys")
     proxy = ProxyServer(
         contract=contract,
         event_logger=EventLogger(

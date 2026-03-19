@@ -6,9 +6,9 @@ from typing import Any, Callable
 
 import pytest
 
-from agentshield.contract.schema import Contract
-from agentshield.engine.policy import RuntimeState
-from agentshield.models import RiskClass
+from stipul.charter.contract.schema import Contract
+from stipul.charter.engine.policy import RuntimeState
+from stipul.models import RiskClass
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "base_contract.json"
 

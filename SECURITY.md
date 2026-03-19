@@ -21,6 +21,6 @@ Do not publish exploit details before maintainers have had a chance to evaluate 
 
 ## Scope Notes
 
-- AgentShield trust guarantees apply at the proxy and evidence boundary, not to full host compromise.
+- Stipul trust guarantees apply at the proxy and evidence boundary, not to full host compromise.
 - The heuristic scanner is advisory and does not prove the absence of vulnerabilities.
 - Exported evidence bundles preserve copied authoritative artifacts; release metadata belongs in the manifest and release assets.

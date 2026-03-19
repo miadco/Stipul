@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from agentshield.contract.lint import lint_contract_payload
-from agentshield.contract.schema import Contract
+from stipul.charter.contract.lint import lint_contract_payload
+from stipul.charter.contract.schema import Contract
 from tests.cli_support import load_base_contract_dict
 
 

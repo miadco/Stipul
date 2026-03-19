@@ -1,0 +1,47 @@
+## Startup
+repo_root=/home/michael/Downloads/stipul
+output_dir=/tmp/stipul-openai-agents-demo
+demo_mode=source_checkout_only
+transport=agents.mcp.MCPServerStdio -> stipul gateway mcp stdio
+driver=focused integration test nodes plus stipul verify
+## Demo Execution
+$ STIPUL_OPENAI_AGENTS_DEMO=1 STIPUL_OPENAI_AGENTS_OUTPUT_DIR=/tmp/stipul-openai-agents-demo .venv/bin/python -m pytest -s -q integrations/openai-agents/test_openai_agents_stdio.py::test_allowed_safe_read_returns_stable_output_and_writes_evidence integrations/openai-agents/test_openai_agents_stdio.py::test_denied_and_kill_switch_paths_are_structured_and_logged
+## Scenario 1: allowed safe read
+{'is_error': False, 'structured_content': {'ok': True, 'tool_name': 'filesystem.read', 'path': '/tmp/stipul-openai-agents-demo/allowed/allowed.txt', 'content': 'hello from test\n'}}
+## Chronicle Events
+{'agent_identity': '72020bb78e314d02a960f8d5585a9f76f95b0676bf7eefb2e03b9a02c92128d8', 'algorithm': 'ed25519', 'contract_hash': '3f27f18be483094908077c61838e18bfceb5fea2b1e8ee244ad246fbffa1052c', 'contract_id': '44444444-4444-4444-4444-444444444444', 'decision': 'allow', 'event_type': 'tool_call', 'input_hash': '6fb35e1ad1b8f97aeabfe02065ef92cefcb50e073026236bc2fefc34e6c45ea3', 'key_created_at': '2026-03-18T00:53:47.339446Z', 'key_id': 'c71565d9', 'metadata': {'ingress': 'mcp_gateway'}, 'prev_hash': '3f27f18be483094908077c61838e18bfceb5fea2b1e8ee244ad246fbffa1052c', 'reason': 'risk_class', 'risk_class': 'read', 'sequence_id': 1, 'session_id': '11111111-1111-1111-1111-111111111111', 'signature': 'T5W6hnfq0xBXeudCmusUumgl+OjhidB3k1H6O1Lg59ayF5ZhxzK9w9JtoFj3UPbalJNKaGb94NGs5FVf7cYaCQ==', 'timestamp': '2026-03-18T00:53:47.770098Z', 'tool_name': 'filesystem.read'}
+allowed_session_dir=/tmp/stipul-openai-agents-demo/allowed/session
+allowed_contract_path=/tmp/stipul-openai-agents-demo/allowed/contract.json
+allowed_home_dir=/tmp/stipul-openai-agents-demo/allowed/home
+.## Scenario 3: approval-gated irreversible action
+{'is_error': True, 'structured_content': {'decision': 'deny', 'reason': 'approval_required', 'tool_name': 'filesystem.delete'}}
+## Chronicle Events
+{'agent_identity': '72020bb78e314d02a960f8d5585a9f76f95b0676bf7eefb2e03b9a02c92128d8', 'algorithm': 'ed25519', 'contract_hash': '3f27f18be483094908077c61838e18bfceb5fea2b1e8ee244ad246fbffa1052c', 'contract_id': '44444444-4444-4444-4444-444444444444', 'decision': 'allow', 'event_type': 'elev_op', 'input_hash': '55d370c6f0dc2d395e3d86e73a179d2540ff6f108b7c949b8579b241c5a81951', 'key_created_at': '2026-03-18T00:53:47.974869Z', 'key_id': '36405975', 'metadata': {'approval_context': {'approval_count': 0, 'approver_ids': [], 'expires_at': '2026-03-18T00:58:48Z', 'input_hash': 'a15e26d4e18c660aa74fa3f7670fd1bb90cf3b53c54a3ad7db9475af2baf478a', 'request_id': '76df74218c04956165e4bf873dbff2c35e6ce7d5bad1325800923075cc12673b', 'required_approver_count': 1, 'status': 'pending', 'tool_name': 'filesystem.delete'}}, 'prev_hash': '9032ebae53d47b2a8c1e75f1422b273e8df930dce60d3973f27e95fd1aa8e03c', 'reason': 'approval_request_created', 'risk_class': 'write', 'sequence_id': 2, 'session_id': '11111111-1111-1111-1111-111111111111', 'signature': '37k3PyoS5FN20xGiZL8pf2vhJJnTIZi0iJN2RwxTbbrSe+ZkydPX9uba8Y+Cp13N3dx7zoJgVxXmJt2FwnGjDQ==', 'timestamp': '2026-03-18T00:53:48.403684Z', 'tool_name': 'filesystem.delete'}
+{'agent_identity': '72020bb78e314d02a960f8d5585a9f76f95b0676bf7eefb2e03b9a02c92128d8', 'algorithm': 'ed25519', 'contract_hash': '3f27f18be483094908077c61838e18bfceb5fea2b1e8ee244ad246fbffa1052c', 'contract_id': '44444444-4444-4444-4444-444444444444', 'decision': 'deny', 'event_type': 'tool_call', 'input_hash': 'a15e26d4e18c660aa74fa3f7670fd1bb90cf3b53c54a3ad7db9475af2baf478a', 'key_created_at': '2026-03-18T00:53:47.974869Z', 'key_id': '36405975', 'metadata': {'approval_context': {'approval_count': 0, 'approver_ids': [], 'expires_at': '2026-03-18T00:58:48Z', 'input_hash': 'a15e26d4e18c660aa74fa3f7670fd1bb90cf3b53c54a3ad7db9475af2baf478a', 'request_id': '76df74218c04956165e4bf873dbff2c35e6ce7d5bad1325800923075cc12673b', 'required_approver_count': 1, 'status': 'pending', 'tool_name': 'filesystem.delete'}, 'ingress': 'mcp_gateway'}, 'prev_hash': 'b844f49258635c354f99b38bc51ebced68bfb6627fd1d5c1d760be517b85c3b8', 'reason': 'approval_required', 'risk_class': 'irreversible', 'sequence_id': 3, 'session_id': '11111111-1111-1111-1111-111111111111', 'signature': 'xd/jRyh0jU5dLzOGW2mcM4w5s1wNvme9mgKVG8OKzRVZ2tLp8jZnx4Oe1W3xN5nehyDUy/eG0yZFbWNnk9XpBA==', 'timestamp': '2026-03-18T00:53:48.404356Z', 'tool_name': 'filesystem.delete'}
+denied_session_dir=/tmp/stipul-openai-agents-demo/denied/session
+denied_contract_path=/tmp/stipul-openai-agents-demo/denied/contract.json
+denied_home_dir=/tmp/stipul-openai-agents-demo/denied/home
+.
+2 passed in 2.49s
+[exit_code=0]
+## Scenario 6: evidence verification success via stipul verify
+$ .venv/bin/python -m stipul.cli.main verify --session-dir /tmp/stipul-openai-agents-demo/allowed/session --contract /tmp/stipul-openai-agents-demo/allowed/contract.json --public-key /tmp/stipul-openai-agents-demo/allowed/home/.stipul/keys/runtime_c71565d9.pub
+Chain integrity: INTACT
+Session: 11111111-1111-1111-1111-111111111111
+Signed events: 1 | Unsigned events: 0 (unverified, not invalid)
+Unsigned link: not present
+Cross-chain link: not available
+Seal: VALID
+[exit_code=0]
+$ .venv/bin/python -c "from pathlib import Path; import sys; sys.path.insert(0, '/home/michael/Downloads/stipul/integrations/openai-agents'); from openai_agents_stdio import tamper_last_event; tamper_last_event(Path('/tmp/stipul-openai-agents-demo/tampered-session/events.jsonl'))"
+## Scenario 7: tamper verification failure after mutating events.jsonl
+$ .venv/bin/python -m stipul.cli.main verify --session-dir /tmp/stipul-openai-agents-demo/tampered-session --contract /tmp/stipul-openai-agents-demo/allowed/contract.json --public-key /tmp/stipul-openai-agents-demo/allowed/home/.stipul/keys/runtime_c71565d9.pub
+Chain integrity: BROKEN
+Session: 11111111-1111-1111-1111-111111111111
+Signed events: 1 | Unsigned events: 0 (unverified, not invalid)
+Unsigned link: not present
+Cross-chain link: not available
+First failure: sequence_id 1, timestamp 2026-03-18T00:53:47.770098Z
+  - SignatureFailure: signature_invalid
+Seal: INVALID
+[exit_code=2]

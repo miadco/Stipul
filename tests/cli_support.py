@@ -8,13 +8,13 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from agentshield.contract.schema import Contract
-from agentshield.contract.utils import compute_contract_hash
-from agentshield.events.decisions import generate_decisions, write_decisions
-from agentshield.events.logger import EventLogger
-from agentshield.events.store import EventStore
-from agentshield.events.summary import build_summary, write_summary_json
-from agentshield.signing.keys import RuntimeKeyPair, generate_keypair
+from stipul.charter.contract.schema import Contract
+from stipul.charter.contract.utils import compute_contract_hash
+from stipul.chronicle.events.decisions import generate_decisions, write_decisions
+from stipul.chronicle.events.logger import EventLogger
+from stipul.chronicle.events.store import EventStore
+from stipul.chronicle.events.summary import build_summary, write_summary_json
+from stipul.chronicle.signing.keys import RuntimeKeyPair, generate_keypair
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -71,7 +71,7 @@ def create_signed_session(
     events_path = session_dir / "events.jsonl"
     decisions_path = session_dir / "decisions.jsonl"
     summary_path = session_dir / "summary.json"
-    keypair = generate_keypair(tmp_path / ".agentshield" / "keys")
+    keypair = generate_keypair(tmp_path / ".stipul" / "keys")
 
     logger = EventLogger(
         store=EventStore(events_path),
@@ -139,7 +139,7 @@ def _default_event_specs() -> list[dict[str, Any]]:
 
 def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, "-m", "agentshield.cli.main", *args],
+        [sys.executable, "-m", "stipul.cli.main", *args],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,

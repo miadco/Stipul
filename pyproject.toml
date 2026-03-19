@@ -3,17 +3,20 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agentshield"
+name = "stipul"
 dynamic = ["version"]
-description = "Policy and contract utilities for agent safety."
+description = "Deterministic enforcement and cryptographic evidence for AI agent actions"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "asn1crypto>=1.5.1",
     "cryptography>=41",
+    "mcp>=1,<2",
+    "PyYAML>=6",
 ]
 
 [project.scripts]
-agentshield = "agentshield.cli.main:main"
+stipul = "stipul.cli.main:main"
 
 [project.optional-dependencies]
 test = [
@@ -31,7 +34,11 @@ dev = [
 ]
 
 [tool.setuptools.dynamic]
-version = {attr = "agentshield.__version__"}
+version = {attr = "stipul.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["stipul*"]
+namespaces = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
