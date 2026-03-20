@@ -242,3 +242,25 @@ def test_cli_export_rejects_redact_with_timestamp_rfc3161(tmp_path: Path) -> Non
 
     with pytest.raises(CLIError, match="--redact is incompatible with --timestamp-rfc3161"):
         export_cmd.run(args)
+
+
+def test_cli_export_rejects_invalid_tsa_url_scheme(tmp_path: Path) -> None:
+    artifacts = create_signed_session(tmp_path, include_decisions=True, include_summary=True)
+    out_dir = tmp_path / "bundle"
+
+    result = run_cli(
+        "export",
+        "--session-dir",
+        str(artifacts.session_dir),
+        "--out-dir",
+        str(out_dir),
+        "--contract",
+        str(artifacts.contract_path),
+        "--public-key",
+        str(artifacts.keypair.public_key_path),
+        "--timestamp-rfc3161",
+        "file:///tmp/tsa",
+    )
+
+    assert result.returncode == 3
+    assert "TSA URL must use http or https: file:///tmp/tsa" in result.stderr

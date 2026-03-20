@@ -5,12 +5,16 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import os
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 import hashlib
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Mapping
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from stipul.charter.budget import (
     BudgetTracker,
@@ -53,11 +57,14 @@ from stipul.chronicle.signing.keys import load_or_create_keypair
 from stipul.seal.builder import build_session_seal, seal_path, write_seal
 from stipul.seal.signer import sign_seal
 from stipul.charter.token.mint import mint_token
+from stipul.models import RiskClass
 from stipul.utils.canonical import canonical_json_bytes, compute_prev_hash
 
 _LOGGER = logging.getLogger(__name__)
 _NO_OVERRIDE = object()
 _APPROVAL_REQUEST_TTL_SECONDS = 300
+_SESSION_CONTRACT_FILENAME = "contract.json"
+_SESSION_PUBLIC_KEY_FILENAME = "public_key.pem"
 
 if TYPE_CHECKING:
     from stipul.writ.proxy.control_sidecar import ControlSidecar
@@ -68,8 +75,30 @@ def _now_iso_utc() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def _risk_to_wire(risk: str) -> str:
-    return risk.replace("_", "-")
+def _session_contract_bytes(contract: Contract) -> bytes:
+    payload = json.dumps(contract.to_canonical_dict(), indent=2, sort_keys=True)
+    return f"{payload}\n".encode("utf-8")
+
+
+def _session_public_key_bytes(public_key: Ed25519PublicKey) -> bytes:
+    return public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+
+
+def _atomic_write_bytes(path: Path, payload: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists() and path.read_bytes() == payload:
+        return
+    tmp_path = path.parent / f"{path.name}.tmp"
+    tmp_path.write_bytes(payload)
+    os.replace(tmp_path, path)
+
+
+def _risk_to_wire(risk: str | RiskClass) -> str:
+    value = risk.value if isinstance(risk, RiskClass) else risk
+    return value.replace("_", "-")
 
 
 def _structured_error(reason: str, tool_name: str) -> dict[str, str]:
@@ -94,6 +123,15 @@ def _safe_inputs(raw_request: Mapping[str, Any]) -> dict[str, Any]:
     if isinstance(value, dict):
         return value
     return {"value": value}
+
+
+def _tool_input(raw_request: Mapping[str, Any]) -> dict[str, Any] | None:
+    value = raw_request.get("inputs", raw_request.get("input", {}))
+    if value is None:
+        return {}
+    if isinstance(value, dict):
+        return dict(value)
+    return None
 
 
 def _input_hash(raw_request: Mapping[str, Any]) -> str:
@@ -257,6 +295,65 @@ def _last_parseable_signed_event_hash(events_path: Path) -> str | None:
     return last_hash
 
 
+def _last_parseable_event(events_path: Path) -> dict[str, Any] | None:
+    last_event: dict[str, Any] | None = None
+    if not events_path.exists():
+        return None
+    with events_path.open("r", encoding="utf-8") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(payload, dict):
+                last_event = payload
+    return last_event
+
+
+def _attestation_from_event(event: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(event, Mapping):
+        return None
+
+    required_str_fields = (
+        "timestamp",
+        "session_id",
+        "contract_id",
+        "contract_hash",
+        "key_id",
+        "algorithm",
+        "key_created_at",
+    )
+    if any(not isinstance(event.get(field), str) or not event.get(field) for field in required_str_fields):
+        return None
+
+    sequence_id = event.get("sequence_id")
+    if isinstance(sequence_id, bool) or not isinstance(sequence_id, int) or sequence_id <= 0:
+        return None
+
+    payload = dict(event)
+    return {
+        "kind": "chronicle_attestation",
+        "event_hash": compute_prev_hash(payload),
+        "sequence_id": sequence_id,
+        "timestamp": payload["timestamp"],
+        "session_id": payload["session_id"],
+        "event_type": payload.get("event_type"),
+        "tool_name": payload.get("tool_name"),
+        "decision": payload.get("decision"),
+        "reason": payload.get("reason"),
+        "contract_id": payload["contract_id"],
+        "contract_hash": payload["contract_hash"],
+        "prev_hash": payload.get("prev_hash"),
+        "signature": payload.get("signature"),
+        "key_id": payload["key_id"],
+        "algorithm": payload["algorithm"],
+        "key_created_at": payload["key_created_at"],
+    }
+
+
 def _rename_for_session_boundary(events_path: Path, old_session_id: str) -> Path:
     safe_session = old_session_id if old_session_id else "unknown"
     target = events_path.with_name(f"events_{safe_session}.jsonl")
@@ -312,6 +409,8 @@ class ProxyServer:
     max_delegation_chain_depth: int = DEFAULT_MAX_DELEGATION_CHAIN_DEPTH
     _control_sidecar: ControlSidecar | None = field(default=None, init=False, repr=False)
     _seal_written: bool = field(default=False, init=False, repr=False)
+    _session_close_written: bool = field(default=False, init=False, repr=False)
+    _session_state: SessionState = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         self._tool_calls_made = 0
@@ -330,6 +429,18 @@ class ProxyServer:
             self.requesting_code_sha256,
         )
         self.health = HealthEndpoint(contract_id=self.contract.contract_id)
+        self._persist_session_trust_inputs()
+        if not self.event_logger.has_events:
+            self._log_lifecycle_event(event_type="session_open", reason="session_started")
+        self._session_state = SessionState(
+            session_id=self.session_id,
+            contract_id=self.contract.contract_id,
+            session_start=self._session_start,
+            events_path=self.event_logger.store.path,
+            decisions_path=self.state_dir / "decisions.jsonl",
+            summary_path=self.state_dir / "summary.json",
+        )
+        self._sync_session_close_state()
         self.circuit_breaker = CircuitBreaker(
             allow_read_fail_open=self.allow_read_fail_open,
             on_state_change=self._on_circuit_state_change,
@@ -345,13 +456,25 @@ class ProxyServer:
         if self.passthrough:
             print("⚠ PASSTHROUGH MODE — enforcement disabled")
 
+    def _persist_session_trust_inputs(self) -> None:
+        session_dir = self.event_logger.store.path.parent
+        _atomic_write_bytes(
+            session_dir / _SESSION_CONTRACT_FILENAME,
+            _session_contract_bytes(self.contract),
+        )
+        _atomic_write_bytes(
+            session_dir / _SESSION_PUBLIC_KEY_FILENAME,
+            _session_public_key_bytes(self.event_logger.signing_key.public_key),
+        )
+
     def close(self) -> None:
-        self.stop_control_sidecar()
-        seal_error: Exception | None = None
-        if not self._seal_written:
-            attestation = self.event_logger.last_attestation
-            if attestation is not None:
-                try:
+        close_error: Exception | None = None
+        try:
+            self.stop_control_sidecar()
+            self._ensure_session_closed()
+            if not self._seal_written:
+                attestation = self._terminal_attestation()
+                if attestation is not None:
                     seal = build_session_seal(attestation, self.event_logger.store.path)
                     seal["signature"] = sign_seal(seal, self.event_logger.signing_key.private_key)
                     write_seal(
@@ -359,15 +482,51 @@ class ProxyServer:
                         seal,
                     )
                     self._seal_written = True
-                except Exception as exc:  # pragma: no cover - exercised through callers
-                    seal_error = exc
+        except Exception as exc:  # pragma: no cover - exercised through callers
+            close_error = exc
+        finally:
+            if self.session_lock is not None:
+                release_session_lock(self.session_lock)
+                self.session_lock = None
 
-        if self.session_lock is not None:
-            release_session_lock(self.session_lock)
-            self.session_lock = None
+        if close_error is not None:
+            raise close_error
 
-        if seal_error is not None:
-            raise seal_error
+    def _sync_session_close_state(self) -> dict[str, Any] | None:
+        last_event = _last_parseable_event(self.event_logger.store.path)
+        self._session_close_written = (
+            isinstance(last_event, dict) and last_event.get("event_type") == "session_close"
+        )
+        self._session_state.closed = self._session_close_written
+        if self._session_close_written and seal_path(self.event_logger.store.path.parent).exists():
+            self._seal_written = True
+        return last_event
+
+    def _terminal_attestation(self) -> dict[str, Any] | None:
+        attestation = self.event_logger.last_attestation
+        if attestation is not None:
+            return attestation
+        return _attestation_from_event(self._sync_session_close_state())
+
+    def _ensure_session_closed(self) -> None:
+        self._sync_session_close_state()
+        if self._session_close_written:
+            return
+
+        from stipul.chronicle.signing.verifier import verify_chain
+
+        chain_result = verify_chain(
+            self.event_logger.store.path,
+            self.event_logger.signing_key.public_key,
+            self.contract,
+        )
+        self.session_close(
+            self._session_state,
+            datetime.now(timezone.utc),
+            chain_result,
+        )
+        self._session_close_written = True
+        self._session_state.closed = True
 
     def start_control_sidecar(self, *, port: int = 0) -> str:
         if self._control_sidecar is None:
@@ -599,7 +758,10 @@ class ProxyServer:
         risk_class: str,
         decision: str,
         reason: str,
-        input_hash: str,
+        input_hash: str | None,
+        tool_input: dict[str, Any] | None = None,
+        rule_triggered: str | None = None,
+        lifecycle_hash: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
         event = self.event_logger.log_decision_event(
@@ -610,7 +772,34 @@ class ProxyServer:
             reason=reason,
             agent_identity=self._agent_identity_hash,
             input_hash=input_hash,
+            tool_input=tool_input,
+            rule_triggered=rule_triggered,
+            lifecycle_hash=lifecycle_hash,
             metadata=metadata,
+        )
+        self.health.update_last_event_timestamp(event.timestamp)
+
+    def _log_lifecycle_event(
+        self,
+        *,
+        event_type: str,
+        reason: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        event = self.event_logger.log_event(
+            {
+                "event_type": event_type,
+                "tool_name": None,
+                "risk_class": None,
+                "decision": None,
+                "reason": reason,
+                "agent_identity": self._agent_identity_hash,
+                "input_hash": None,
+                "tool_input": None,
+                "rule_triggered": None,
+                "lifecycle_hash": None,
+                "metadata": dict(metadata) if metadata is not None else None,
+            }
         )
         self.health.update_last_event_timestamp(event.timestamp)
 
@@ -673,20 +862,32 @@ class ProxyServer:
             ),
         }
 
-    def _log_approval_lifecycle_event(self, reason: str, request: ApprovalRequest) -> None:
+    def _log_approval_lifecycle_event(
+        self,
+        reason: str,
+        request: ApprovalRequest,
+        *,
+        risk_class: str | None = None,
+    ) -> None:
         payload = {
             "reason": reason,
             "request_id": request.request_id,
             "approval_count": len(request.approvals),
             "status": request.status,
         }
+        resolved_risk_class = (
+            risk_class
+            or request.risk_class
+            or _risk_to_wire(self.contract.tool_risk_classes.get(request.tool_name, RiskClass.write))
+        )
         self._log_decision(
             event_type="elev_op",
             tool_name=request.tool_name,
-            risk_class="write",
+            risk_class=resolved_risk_class,
             decision="allow",
             reason=reason,
-            input_hash=hashlib.sha256(canonical_json_bytes(payload)).hexdigest(),
+            input_hash=request.input_hash,
+            lifecycle_hash=hashlib.sha256(canonical_json_bytes(payload)).hexdigest(),
             metadata=_approval_context(request),
         )
 
@@ -732,6 +933,7 @@ class ProxyServer:
         *,
         tool_name: str,
         input_hash: str,
+        risk_class: str,
         egress_target: str | None,
         requesting_agent_id: str,
         current_time: datetime,
@@ -750,6 +952,7 @@ class ProxyServer:
             status="pending",
             tool_name=tool_name,
             input_hash=input_hash,
+            risk_class=risk_class,
             egress_target=egress_target,
             requesting_agent_id=requesting_agent_id,
             session_id=self.session_id,
@@ -768,6 +971,7 @@ class ProxyServer:
         *,
         tool_name: str,
         input_hash: str,
+        risk_class: str,
         egress_target: str | None,
         requesting_agent_id: str,
         current_time: datetime,
@@ -776,6 +980,7 @@ class ProxyServer:
         request = self._create_pending_approval_request(
             tool_name=tool_name,
             input_hash=input_hash,
+            risk_class=risk_class,
             egress_target=egress_target,
             requesting_agent_id=requesting_agent_id,
             current_time=current_time,
@@ -787,7 +992,11 @@ class ProxyServer:
             requests={**state.requests, request.request_id: request},
         )
         self._save_approval_state(updated_state)
-        self._log_approval_lifecycle_event("approval_request_created", request)
+        self._log_approval_lifecycle_event(
+            "approval_request_created",
+            request,
+            risk_class=risk_class,
+        )
         return request
 
     def approval_status(self, request_id: str | None = None) -> dict[str, Any]:
@@ -1036,6 +1245,7 @@ class ProxyServer:
         risk_class: str,
         reason: str,
         input_hash: str,
+        tool_input: dict[str, Any] | None,
         egress_target: str | None,
         request_metadata: dict[str, Any] | None,
         extra_metadata: dict[str, Any] | None = None,
@@ -1080,6 +1290,7 @@ class ProxyServer:
             risk_class=risk_class,
             reason=reason,
             input_hash=input_hash,
+            tool_input=tool_input,
             egress_target=egress_target,
             override_metadata=override_metadata,
             request_metadata=request_metadata,
@@ -1094,7 +1305,9 @@ class ProxyServer:
         risk_class: str,
         reason: str,
         input_hash: str,
+        tool_input: dict[str, Any] | None,
         egress_target: str | None,
+        rule_triggered: str | None = None,
         override_metadata: dict[str, Any] | None = None,
         request_metadata: dict[str, Any] | None = None,
     ) -> Any:
@@ -1121,6 +1334,8 @@ class ProxyServer:
             decision="allow",
             reason=reason,
             input_hash=input_hash,
+            tool_input=tool_input,
+            rule_triggered=rule_triggered,
             metadata=request_metadata,
         )
         self._tool_calls_made += 1
@@ -1136,6 +1351,7 @@ class ProxyServer:
         """Evaluate, enforce, log, and forward a tool call."""
         tool_name = _safe_tool_name(raw_request)
         input_hash = _input_hash(raw_request)
+        tool_input = _tool_input(raw_request)
         egress_target = _extract_egress_target(raw_request)
         risk_hint = self.contract.tool_risk_classes.get(tool_name)
         risk_hint_wire = _risk_to_wire(risk_hint.value if risk_hint else "write")
@@ -1154,6 +1370,7 @@ class ProxyServer:
                 decision="deny",
                 reason="proxy_degraded",
                 input_hash=input_hash,
+                tool_input=tool_input,
                 metadata=request_metadata,
             )
             return _structured_error("proxy_degraded", tool_name)
@@ -1166,6 +1383,7 @@ class ProxyServer:
                 decision="deny",
                 reason="kill_switch_active",
                 input_hash=input_hash,
+                tool_input=tool_input,
                 metadata=_merge_metadata(request_metadata, {
                     "kill_switch_active": True,
                     "operator_reason": operator_state.reason,
@@ -1187,6 +1405,7 @@ class ProxyServer:
                 decision="deny",
                 reason="proxy_degraded",
                 input_hash=input_hash,
+                tool_input=tool_input,
                 metadata=request_metadata,
             )
             return _structured_error("proxy_degraded", tool_name)
@@ -1230,6 +1449,7 @@ class ProxyServer:
                     decision="deny",
                     reason="delegation_unavailable",
                     input_hash=input_hash,
+                    tool_input=tool_input,
                     metadata=_merge_metadata(request_metadata, delegation_metadata),
                 )
                 return _structured_error("delegation_unavailable", tool_name)
@@ -1244,6 +1464,7 @@ class ProxyServer:
                     decision="deny",
                     reason=delegation_validation.reason,
                     input_hash=input_hash,
+                    tool_input=tool_input,
                     metadata=request_metadata,
                 )
                 return _structured_error(delegation_validation.reason, tool_name)
@@ -1259,6 +1480,7 @@ class ProxyServer:
                 decision="allow",
                 reason="passthrough",
                 input_hash=input_hash,
+                tool_input=tool_input,
                 metadata=request_metadata,
             )
             response = forward_call(raw_request)
@@ -1276,6 +1498,7 @@ class ProxyServer:
                 decision="deny",
                 reason="proxy_degraded",
                 input_hash=input_hash,
+                tool_input=tool_input,
                 metadata=request_metadata,
             )
             return _structured_error("proxy_degraded", tool_name)
@@ -1302,6 +1525,7 @@ class ProxyServer:
                 decision="deny",
                 reason="budget_exhausted",
                 input_hash=input_hash,
+                tool_input=tool_input if budget_result.dimension != "net_calls" else None,
                 metadata=request_metadata,
             )
             return _structured_error("budget_exhausted", tool_name)
@@ -1331,6 +1555,7 @@ class ProxyServer:
                     risk_class=risk_hint_wire,
                     reason="breakglass_active",
                     input_hash=input_hash,
+                    tool_input=tool_input,
                     egress_target=egress_target,
                     override_metadata={
                         "override_type": "breakglass",
@@ -1353,6 +1578,7 @@ class ProxyServer:
                     risk_class=risk_hint_wire,
                     reason="exception_permit_active",
                     input_hash=input_hash,
+                    tool_input=tool_input,
                     egress_target=egress_target,
                     request_metadata=request_metadata,
                 )
@@ -1380,6 +1606,7 @@ class ProxyServer:
                 decision=decision,
                 reason="proxy_degraded",
                 input_hash=input_hash,
+                tool_input=tool_input,
                 metadata=request_metadata,
             )
             if decision == "deny":
@@ -1392,6 +1619,7 @@ class ProxyServer:
                 risk_class=risk_hint_wire,
                 reason="proxy_degraded",
                 input_hash=input_hash,
+                tool_input=tool_input,
                 egress_target=egress_target,
                 request_metadata=request_metadata,
             )
@@ -1405,6 +1633,7 @@ class ProxyServer:
                 decision="deny",
                 reason="proxy_degraded",
                 input_hash=input_hash,
+                tool_input=tool_input,
                 metadata=request_metadata,
             )
             return _structured_error("proxy_degraded", tool_name)
@@ -1418,6 +1647,8 @@ class ProxyServer:
                 decision="deny",
                 reason=result.reason,
                 input_hash=result.input_hash,
+                tool_input=tool_input if event_type == "tool_call" else None,
+                rule_triggered=result.rule_triggered,
                 metadata=request_metadata,
             )
             return _structured_error(result.reason, result.tool_name)
@@ -1426,6 +1657,7 @@ class ProxyServer:
             approval_request = self._ensure_approval_request(
                 tool_name=result.tool_name,
                 input_hash=result.input_hash,
+                risk_class=result.risk_class,
                 egress_target=egress_target,
                 requesting_agent_id=effective_requesting_agent_id,
                 current_time=current_time,
@@ -1446,6 +1678,7 @@ class ProxyServer:
                         risk_class=result.risk_class,
                         reason="approval_quorum_active",
                         input_hash=result.input_hash,
+                        tool_input=tool_input,
                         egress_target=egress_target,
                         request_metadata=approval_metadata,
                         extra_metadata=_approval_context(approval_request),
@@ -1460,6 +1693,8 @@ class ProxyServer:
                 decision="deny",
                 reason="approval_required",
                 input_hash=result.input_hash,
+                tool_input=tool_input,
+                rule_triggered=result.rule_triggered,
                 metadata=approval_metadata,
             )
             return _structured_error("approval_required", result.tool_name)
@@ -1485,7 +1720,9 @@ class ProxyServer:
             risk_class=result.risk_class,
             reason=result.reason,
             input_hash=result.input_hash,
+            tool_input=tool_input,
             egress_target=egress_target,
+            rule_triggered=result.rule_triggered,
             request_metadata=request_metadata,
         )
 
