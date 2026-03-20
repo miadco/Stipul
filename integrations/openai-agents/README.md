@@ -33,7 +33,7 @@ Observed results from this repo environment:
 ```text
 Name: openai-agents
 Version: 0.12.0
-Location: /home/michael/Downloads/stipul/.venv/lib/python3.12/site-packages
+Location: <project-venv>/lib/python3.12/site-packages
 ```
 
 ```text
@@ -41,7 +41,7 @@ ImportError: cannot import name 'MCPServerStdio' from 'agents'
 ```
 
 ```text
-agents.__file__ -> /home/michael/Downloads/stipul/.venv/lib/python3.12/site-packages/agents/__init__.py
+agents.__file__ -> <project-venv>/lib/python3.12/site-packages/agents/__init__.py
 dir(agents) includes HostedMCPTool and the agents.mcp submodule, but not top-level MCPServerStdio.
 ```
 
