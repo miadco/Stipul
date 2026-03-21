@@ -65,4 +65,4 @@ If a support agent can read local files and call web tools, you need a record sh
 ## Links
 
 PyPI: https://pypi.org/project/stipul/
-GitHub: https://github.com/miadco/agentshield
+GitHub: https://github.com/miadco/stipul
