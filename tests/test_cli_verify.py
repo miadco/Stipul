@@ -549,17 +549,14 @@ def test_verify_reports_invalid_seal_without_changing_chronicle_verdict(
     lines = _assert_receipt(result.stdout, chain_status="INTACT", seal_status="INVALID")
     assert (
         _line_with_prefix(lines, "Reason: ")
-        == "Reason: seal terminal_sequence_id does not match authoritative events.jsonl"
+        == "Reason: seal does not match authoritative session evidence"
     )
     assert _line_with_prefix(lines, "Terminal: ").startswith("Terminal: seq=3 at ")
 
     report = json.loads(report_path.read_text(encoding="utf-8"))
     assert report["chain_status"] == "INTACT"
     assert report["seal_status"] == "INVALID"
-    assert (
-        report["seal_reason"]
-        == "seal terminal_sequence_id does not match authoritative events.jsonl"
-    )
+    assert report["seal_reason"] == "seal does not match authoritative session evidence"
 
 
 def test_r002_unsealed_session_ambiguity(tmp_path: Path, monkeypatch) -> None:

@@ -9,7 +9,11 @@ from tests.cli_support import run_cli
 
 
 def _session_dir_from_output(stdout: str) -> Path:
-    match = re.search(r"^\s*5\. Run:\s+stipul verify (?P<session>.+)$", stdout, re.MULTILINE)
+    match = re.search(
+        r"^\s*\.venv/bin/python -m stipul\.cli\.main verify (?P<session>.+)$",
+        stdout,
+        re.MULTILINE,
+    )
     assert match is not None
     return Path(match.group("session").strip())
 
@@ -22,11 +26,11 @@ def test_demo_proof_prints_verified_receipt_and_tamper_payoff() -> None:
     assert "reason: allowed_tool" in result.stdout
     assert "Trust: VERIFIED" in result.stdout
     assert "  Decisions: 3" in result.stdout
-    assert (
-        '(Verify will show the internal session ID, not "proof-demo". '
-        "This is the same session.)"
-        in result.stdout
-    )
+    assert "Step 1 — View the current seal:" in result.stdout
+    assert "Step 2 — Verify the session as-is:" in result.stdout
+    assert "Step 3 — Now tamper with the seal:" in result.stdout
+    assert "Step 4 — Re-verify the session:" in result.stdout
+    assert "Watch Trust: VERIFIED become Trust: REJECTED." not in result.stdout
     assert "Proof complete" in result.stdout
 
     session_dir = _session_dir_from_output(result.stdout)
@@ -39,6 +43,11 @@ def test_demo_proof_prints_verified_receipt_and_tamper_payoff() -> None:
         assert str(seal_path) in result.stdout
 
         seal_payload = json.loads(seal_path.read_text(encoding="utf-8"))
+        assert (
+            f"sed -i 's/\"terminal_sequence_id\": {seal_payload['terminal_sequence_id']}"
+            f"/\"terminal_sequence_id\": 999/' {seal_path}"
+        ) in result.stdout
+        assert f"sed -i 's/\"version\": 1/\"version\": 42/' {seal_path}" in result.stdout
         seal_payload["terminal_sequence_id"] = 999
         seal_path.write_text(
             json.dumps(seal_payload, indent=2, sort_keys=True) + "\n",

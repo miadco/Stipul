@@ -177,12 +177,25 @@ def _render_output(session_dir: Path) -> str:
     seal_path = (session_dir / "seal.json").resolve()
     session_path = session_dir.resolve()
     seal_fingerprint = sha256_bytes(seal_path.read_bytes())[:8]
+    terminal_sequence_id = verification.seal_result.terminal_sequence_id
+    if not isinstance(terminal_sequence_id, int) or terminal_sequence_id <= 0:
+        raise CLIError(
+            "Demo self-verification failed: missing terminal sequence id",
+            exit_code=2,
+        )
     trust = trust_status(
         chain_status=verification.chain_result.status,
         seal_status=verification.seal_result.status,
     )
     # Chronicle lifecycle events exist outside the operator-facing decision count.
     display_event_text = f"{display_event_count} decisions"
+    inspect_cmd = f"cat {seal_path} | python3 -m json.tool"
+    tamper_cmd = (
+        "sed -i "
+        f"'s/\"terminal_sequence_id\": {terminal_sequence_id}/\"terminal_sequence_id\": 999/' "
+        f"{seal_path}"
+    )
+    verify_cmd = f".venv/bin/python -m stipul.cli.main verify {session_path}"
 
     lines = [
         "═══ Stipul Proof Demo ═══",
@@ -202,24 +215,32 @@ def _render_output(session_dir: Path) -> str:
         "",
         "═══ Tamper Challenge ═══",
         "",
-        "To test tamper detection, modify the sealed evidence:",
-        f'({{verify_note}})',
+        "The seal records a cryptographic attestation over the session evidence.",
+        "Inspect it yourself, verify the session as-is, then change a recorded value and re-verify.",
         "",
-        f"  1. Open: {seal_path}",
-        '  2. Find the field "terminal_sequence_id"',
-        "  3. Change its value (e.g., change 4 to 999)",
-        "  4. Save the file",
-        f"  5. Run:  stipul verify {session_path}",
+        "Step 1 — View the current seal:",
         "",
-        "Watch Trust: VERIFIED become Trust: REJECTED.",
+        f"  {inspect_cmd}",
+        "",
+        "Step 2 — Verify the session as-is:",
+        "",
+        f"  {verify_cmd}",
+        "",
+        "Step 3 — Now tamper with the seal:",
+        "",
+        f"  {tamper_cmd}",
+        "",
+        "  Or try a different recorded value in seal.json and re-verify.",
+        "",
+        f"  sed -i 's/\"version\": 1/\"version\": 42/' {seal_path}",
+        "",
+        "Step 4 — Re-verify the session:",
+        "",
+        f"  {verify_cmd}",
         "",
         "Proof complete: enforcement decisions recorded, chained, and sealed.",
     ]
-    verify_note = (
-        'Verify will show the internal session ID, not "proof-demo". '
-        "This is the same session."
-    )
-    return "\n".join(line.format(verify_note=verify_note) for line in lines)
+    return "\n".join(lines)
 
 
 def run(_args: argparse.Namespace) -> int:
