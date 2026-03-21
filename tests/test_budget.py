@@ -351,9 +351,9 @@ def test_proxy_budget_check_runs_before_policy_eval(tmp_path: Path, monkeypatch,
     }
     assert called["intercept"] == 0
     events = _read_events(events_path)
-    assert [event["event_type"] for event in events] == ["budget_exhausted", "tool_call"]
-    assert events[1]["decision"] == "deny"
-    assert events[1]["reason"] == "budget_exhausted"
+    assert [event["event_type"] for event in events] == ["session_open", "budget_exhausted", "tool_call"]
+    assert events[2]["decision"] == "deny"
+    assert events[2]["reason"] == "budget_exhausted"
     budget_state = json.loads((tmp_path / "budget_state.json").read_text(encoding="utf-8"))
     assert budget_state["exhausted"] is True
 

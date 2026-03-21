@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -11,11 +11,19 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from stipul.cli.io import CLIError
-from stipul.cli.io import ensure_session_dir, read_json, write_json
+from stipul.cli.io import ensure_session_dir, write_json
+from stipul.charter.contract.loader import load_charter
 from stipul.exceptions import ContractValidationError
 from stipul.charter.contract.schema import Contract
 from stipul.chronicle.signing.verifier import verify_chain
 from stipul.seal.verifier import SealVerificationResult, verify_seal
+
+
+@dataclass(frozen=True)
+class VerificationOutcome:
+    chain_result: Any
+    seal_result: SealVerificationResult
+    report: dict[str, Any]
 
 
 def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -23,18 +31,16 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
         "verify",
         help="Verify the authoritative signed events stream for a session",
     )
-    parser.add_argument("--session-dir", required=True)
-    parser.add_argument("--contract", required=True)
-    parser.add_argument("--public-key", required=True)
+    parser.add_argument("session_dir", nargs="?")
+    parser.add_argument("--session-dir", dest="session_dir_flag")
+    parser.add_argument("--contract")
+    parser.add_argument("--public-key")
     parser.add_argument("--json-out")
-    parser.set_defaults(handler=run)
+    parser.set_defaults(handler=run, parser=parser)
 
 
 def _load_contract(path: Path) -> Contract:
-    payload = read_json(path)
-    if not isinstance(payload, dict):
-        raise CLIError(f"Contract JSON must be an object: {path}", exit_code=3)
-    return Contract.from_dict(payload)
+    return load_charter(path).contract
 
 
 def _load_public_key(path: Path) -> Ed25519PublicKey:
@@ -81,6 +87,7 @@ def _render_receipt(chain_result: Any, seal_result: SealVerificationResult) -> s
     lines = [
         "Verification receipt",
         f"Session: {chain_result.session_id or 'unknown'}",
+        f"Trust: {trust_status(chain_status=chain_result.status, seal_status=seal_result.status)}",
         f"Chain: {chain_result.status}",
         f"Seal: {seal_result.status}",
     ]
@@ -160,30 +167,133 @@ def _terminal_line(seal_result: SealVerificationResult) -> str | None:
     return None
 
 
+def trust_status(*, chain_status: str, seal_status: str) -> str:
+    if chain_status == "INTACT" and seal_status == "VALID":
+        return "VERIFIED"
+    if chain_status == "INTACT" and seal_status == "ABSENT":
+        return "UNVERIFIED (unsealed)"
+    return "REJECTED"
+
+
+def verification_exit_code(
+    chain_result: Any,
+    seal_result: SealVerificationResult,
+) -> int:
+    if chain_result.status == "ERROR":
+        return 3
+    if chain_result.status != "INTACT":
+        return 2
+    if seal_result.status == "INVALID":
+        return 2
+    return 0
+
+
+def _parser_error(args: argparse.Namespace, message: str) -> None:
+    parser = getattr(args, "parser", None)
+    if parser is None:
+        raise CLIError(message, exit_code=2)
+    parser.error(message)
+
+
+def _resolve_session_dir(args: argparse.Namespace) -> Path:
+    positional = args.session_dir
+    flagged = args.session_dir_flag
+    if positional is None and flagged is None:
+        _parser_error(args, "session_dir is required unless --session-dir is provided")
+
+    if positional is not None and flagged is not None:
+        positional_resolved = Path(positional).expanduser().resolve(strict=False)
+        flagged_resolved = Path(flagged).expanduser().resolve(strict=False)
+        if positional_resolved != flagged_resolved:
+            _parser_error(
+                args,
+                "session_dir positional argument and --session-dir must resolve to the same path",
+            )
+
+    selected = positional if positional is not None else flagged
+    return ensure_session_dir(Path(selected))
+
+
+def _autodiscovered_input_path(
+    *,
+    session_dir: Path,
+    filename: str,
+    flag_name: str,
+    label: str,
+) -> Path:
+    candidate = session_dir / filename
+    if not candidate.exists():
+        raise CLIError(
+            f"Operational error: missing session-local {label}: {candidate}. "
+            f"Use {flag_name} <path> to override.",
+            exit_code=2,
+        )
+    if not candidate.is_file():
+        raise CLIError(
+            f"Operational error: session-local {label} is not a file: {candidate}. "
+            f"Use {flag_name} <path> to override.",
+            exit_code=2,
+        )
+    return candidate
+
+
+def verify_session(
+    session_dir: Path,
+    *,
+    contract_path: Path,
+    public_key_path: Path,
+) -> VerificationOutcome:
+    contract = _load_contract(contract_path)
+    public_key = _load_public_key(public_key_path)
+    events_path = session_dir / "events.jsonl"
+    chain_result = verify_chain(events_path, public_key, contract)
+    seal_result = verify_seal(session_dir, public_key, contract)
+    report = _build_report(
+        chain_result,
+        seal_status=seal_result.status,
+        seal_reason=seal_result.error,
+    )
+    return VerificationOutcome(
+        chain_result=chain_result,
+        seal_result=seal_result,
+        report=report,
+    )
+
+
 def run(args: argparse.Namespace) -> int:
     try:
-        session_dir = ensure_session_dir(Path(args.session_dir))
-        contract = _load_contract(Path(args.contract))
-        public_key = _load_public_key(Path(args.public_key))
-        events_path = session_dir / "events.jsonl"
-
-        chain_result = verify_chain(events_path, public_key, contract)
-        seal_result = verify_seal(session_dir, public_key, contract)
-        report = _build_report(
-            chain_result,
-            seal_status=seal_result.status,
-            seal_reason=seal_result.error,
+        session_dir = _resolve_session_dir(args)
+        contract_path = (
+            Path(args.contract)
+            if args.contract is not None
+            else _autodiscovered_input_path(
+                session_dir=session_dir,
+                filename="contract.json",
+                flag_name="--contract",
+                label="contract file",
+            )
         )
-        print(_render_receipt(chain_result, seal_result))
+        public_key_path = (
+            Path(args.public_key)
+            if args.public_key is not None
+            else _autodiscovered_input_path(
+                session_dir=session_dir,
+                filename="public_key.pem",
+                flag_name="--public-key",
+                label="public key file",
+            )
+        )
+        outcome = verify_session(
+            session_dir,
+            contract_path=contract_path,
+            public_key_path=public_key_path,
+        )
+        print(_render_receipt(outcome.chain_result, outcome.seal_result))
 
         if args.json_out:
-            write_json(Path(args.json_out), report, pretty=True, sort_keys=True)
+            write_json(Path(args.json_out), outcome.report, pretty=True, sort_keys=True)
 
-        if chain_result.status == "ERROR":
-            return 3
-        if chain_result.status == "INTACT":
-            return 0
-        return 2
+        return verification_exit_code(outcome.chain_result, outcome.seal_result)
     except CLIError:
         raise
     except FileNotFoundError as exc:

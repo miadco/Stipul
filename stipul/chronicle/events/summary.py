@@ -317,25 +317,24 @@ def summary_to_event(
     agent_identity: str,
 ) -> dict[str, Any]:
     """
-    Build a logger-ready summary event payload.
-
-    `input_hash` is derived from canonical summary metadata so callers do not
-    need to fabricate a tool-input hash for this synthetic event type.
+    Build a logger-ready lifecycle event payload for session close.
     """
     if not isinstance(agent_identity, str) or not agent_identity:
         raise ValueError("agent_identity must be a non-empty string")
     metadata = asdict(summary)
-    input_hash = hashlib.sha256(canonical_json_bytes(metadata)).hexdigest()
 
     return {
-        "event_type": "write_op",
-        "decision": "allow",
-        "reason": "session_close",
-        "tool_name": "session_summary",
-        "risk_class": "read",
+        "event_type": "session_close",
+        "tool_name": None,
+        "risk_class": None,
+        "decision": None,
+        "reason": "session_closed",
         "contract_id": summary.contract_id,
         "agent_identity": agent_identity,
-        "input_hash": input_hash,
+        "input_hash": None,
+        "tool_input": None,
+        "rule_triggered": None,
+        "lifecycle_hash": None,
         "metadata": metadata,
     }
 

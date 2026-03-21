@@ -317,9 +317,10 @@ def test_session_close_emits_gap_events_before_summary_and_updates_summary_field
 
     events = _read_events(events_path)
     gap_indices = [idx for idx, event in enumerate(events) if event["reason"] == "gap_detected"]
-    summary_index = next(idx for idx, event in enumerate(events) if event["reason"] == "session_close")
+    summary_index = next(idx for idx, event in enumerate(events) if event["reason"] == "session_closed")
     assert gap_indices
     assert max(gap_indices) < summary_index
+    assert events[summary_index]["event_type"] == "session_close"
     assert summary.coverage_assessment == "Low"
     assert summary.coverage_percentage == 0.0
     assert summary.gaps_detected == 3

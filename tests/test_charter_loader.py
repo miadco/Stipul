@@ -38,7 +38,7 @@ def test_proxy_load_contract_supports_yaml() -> None:
 def test_proxy_from_contract_path_supports_yaml(tmp_path: Path) -> None:
     proxy = ProxyServer.from_contract_path(
         FIXTURES_DIR / "base_contract.yaml",
-        session_id="yaml-session",
+        session_id="11111111-1111-1111-1111-111111111111",
         events_path=tmp_path / "events.jsonl",
     )
     try:

@@ -140,3 +140,37 @@ def test_budget_exhausted_denial_present_in_projection(tmp_path: Path) -> None:
     result = verify_decisions(events_path, decisions_path)
     assert result.status == "VALID"
     assert any(event["reason"] == "budget_exhausted" for event in events)
+
+
+def test_verify_decisions_ignores_lifecycle_events_with_null_decision(tmp_path: Path) -> None:
+    events_path = tmp_path / "events.jsonl"
+    decisions_path = tmp_path / "decisions.jsonl"
+    rows = [
+        {
+            "sequence_id": 1,
+            "event_type": "session_open",
+            "decision": None,
+            "reason": "session_started",
+            "tool_name": None,
+            "contract_id": "22222222-2222-2222-2222-222222222222",
+            "contract_hash": "a" * 64,
+        },
+        *_events(),
+        {
+            "sequence_id": 4,
+            "event_type": "session_close",
+            "decision": None,
+            "reason": "session_closed",
+            "tool_name": None,
+            "contract_id": "22222222-2222-2222-2222-222222222222",
+            "contract_hash": "a" * 64,
+        },
+    ]
+    _write_jsonl(events_path, rows)
+    _write_jsonl(decisions_path, _decisions_projection())
+
+    result = verify_decisions(events_path, decisions_path)
+    assert result.status == "VALID"
+    assert result.missing_from_decisions == []
+    assert result.extra_in_decisions == []
+    assert result.field_mismatches == []

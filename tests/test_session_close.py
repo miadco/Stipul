@@ -159,11 +159,15 @@ def test_session_close_emits_summary_event_to_log_event(
 
     assert proxy_stub.event_logger.log_event.called
     payload = proxy_stub.event_logger.log_event.call_args[0][0]
-    assert payload["event_type"] == "write_op"
-    assert payload["decision"] == "allow"
-    assert payload["reason"] == "session_close"
-    assert payload["tool_name"] == "session_summary"
-    assert payload["risk_class"] == "read"
+    assert payload["event_type"] == "session_close"
+    assert payload["decision"] is None
+    assert payload["reason"] == "session_closed"
+    assert payload["tool_name"] is None
+    assert payload["risk_class"] is None
+    assert payload["tool_input"] is None
+    assert payload["input_hash"] is None
+    assert payload["rule_triggered"] is None
+    assert payload["lifecycle_hash"] is None
     assert "metadata" in payload
     assert payload["agent_identity"] == "b" * 64
     assert "sequence_id" not in payload
@@ -272,10 +276,15 @@ def test_summary_event_round_trip_through_real_event_logger(
         if line.strip()
     ]
     summary_event = lines[-1]
-    assert summary_event["tool_name"] == "session_summary"
-    assert summary_event["event_type"] == "write_op"
-    assert summary_event["decision"] == "allow"
-    assert summary_event["reason"] == "session_close"
+    assert summary_event["tool_name"] is None
+    assert summary_event["event_type"] == "session_close"
+    assert summary_event["decision"] is None
+    assert summary_event["reason"] == "session_closed"
+    assert summary_event["tool_input"] is None
+    assert summary_event["input_hash"] is None
+    assert summary_event["risk_class"] is None
+    assert summary_event["rule_triggered"] is None
+    assert summary_event["lifecycle_hash"] is None
     assert summary_event["agent_identity"] == "b" * 64
     assert isinstance(summary_event["signature"], str) and summary_event["signature"]
     assert summary_event["contract_hash"] == compute_contract_hash(contract)
@@ -283,8 +292,8 @@ def test_summary_event_round_trip_through_real_event_logger(
 
     decisions_result = verify_decisions_projection(events_path, state.decisions_path)
     assert decisions_result.is_valid is True
-    assert decisions_result.expected_count == 3
-    assert decisions_result.actual_count == 3
+    assert decisions_result.expected_count == 2
+    assert decisions_result.actual_count == 2
 
 
 def test_session_close_second_call_is_idempotent_and_does_not_write(

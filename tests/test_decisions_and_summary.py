@@ -435,15 +435,17 @@ def test_summary_to_event_format_and_no_reserved_fields(
         budget_consumed={"tool_calls": 1.0, "net_calls": 0.0},
     )
     event = summary_to_event(summary, agent_identity="b" * 64)
-    assert event["event_type"] == "write_op"
-    assert event["decision"] == "allow"
-    assert event["reason"] == "session_close"
-    assert event["tool_name"] == "session_summary"
-    assert event["risk_class"] == "read"
+    assert event["event_type"] == "session_close"
+    assert event["decision"] is None
+    assert event["reason"] == "session_closed"
+    assert event["tool_name"] is None
+    assert event["risk_class"] is None
     assert event["contract_id"] == summary.contract_id
     assert event["agent_identity"] == "b" * 64
-    expected_input_hash = hashlib.sha256(canonical_json_bytes(event["metadata"])).hexdigest()
-    assert event["input_hash"] == expected_input_hash
+    assert event["input_hash"] is None
+    assert event["tool_input"] is None
+    assert event["rule_triggered"] is None
+    assert event["lifecycle_hash"] is None
     for key in ("sequence_id", "timestamp", "prev_hash", "signature"):
         assert key not in event
 

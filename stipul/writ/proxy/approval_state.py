@@ -50,6 +50,7 @@ class ApprovalRequest:
     status: str
     tool_name: str
     input_hash: str
+    risk_class: str | None
     egress_target: str | None
     requesting_agent_id: str
     session_id: str
@@ -66,6 +67,7 @@ class ApprovalRequest:
             "status": self.status,
             "tool_name": self.tool_name,
             "input_hash": self.input_hash,
+            "risk_class": self.risk_class,
             "egress_target": self.egress_target,
             "requesting_agent_id": self.requesting_agent_id,
             "session_id": self.session_id,
@@ -115,6 +117,7 @@ def _validate_approval_request(payload: object) -> ApprovalRequest:
     status = payload.get("status")
     tool_name = payload.get("tool_name")
     input_hash = payload.get("input_hash")
+    risk_class = payload.get("risk_class")
     egress_target = payload.get("egress_target")
     requesting_agent_id = payload.get("requesting_agent_id")
     session_id = payload.get("session_id")
@@ -133,6 +136,8 @@ def _validate_approval_request(payload: object) -> ApprovalRequest:
         raise ApprovalStateError("approval_state.json missing valid tool_name")
     if not isinstance(input_hash, str) or not input_hash:
         raise ApprovalStateError("approval_state.json missing valid input_hash")
+    if risk_class is not None and (not isinstance(risk_class, str) or not risk_class):
+        raise ApprovalStateError("approval_state.json has invalid risk_class")
     if egress_target is not None and (not isinstance(egress_target, str) or not egress_target):
         raise ApprovalStateError("approval_state.json has invalid egress_target")
     if not isinstance(requesting_agent_id, str) or not requesting_agent_id:
@@ -162,6 +167,7 @@ def _validate_approval_request(payload: object) -> ApprovalRequest:
         status=status,
         tool_name=tool_name,
         input_hash=input_hash,
+        risk_class=risk_class,
         egress_target=egress_target,
         requesting_agent_id=requesting_agent_id,
         session_id=session_id,

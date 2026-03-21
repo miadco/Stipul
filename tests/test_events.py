@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from stipul.charter.contract.utils import compute_contract_hash
-from stipul.chronicle.events.logger import EventLogger, EventWriteError
+from stipul.chronicle.events.logger import EventLogger, EventWriteError, compute_event_hash
 from stipul.chronicle.events.models import CanonicalEvent
 from stipul.chronicle.events.store import EventStore
 from stipul.chronicle.signing.keys import generate_keypair
@@ -103,6 +103,10 @@ def test_logger_writes_monotonic_sequence_ids(tmp_path: Path, contract):
     assert events[0]["prev_hash"] == compute_contract_hash(contract)
     assert isinstance(events[0]["signature"], str) and events[0]["signature"]
     assert events[0]["session_id"] == _SESSION_ID
+    assert events[0]["rule_triggered"] is None
+    assert events[0]["lifecycle_hash"] is None
+    assert events[0]["event_hash"] == compute_event_hash(events[0])
+    assert events[1]["event_hash"] == compute_event_hash(events[1])
 
 
 def test_logger_log_decision_event_writes_authoritative_decision_record(tmp_path: Path, contract):
@@ -116,14 +120,18 @@ def test_logger_log_decision_event_writes_authoritative_decision_record(tmp_path
         reason="not_in_contract",
         agent_identity="b" * 64,
         input_hash="c" * 64,
+        rule_triggered="not_allowed",
         metadata={"path": "out.txt"},
     )
 
     assert event.decision == "deny"
     assert event.reason == "not_in_contract"
+    assert event.rule_triggered == "not_allowed"
     persisted = json.loads((tmp_path / "events.jsonl").read_text(encoding="utf-8").splitlines()[0])
     assert persisted["decision"] == "deny"
     assert persisted["metadata"] == {"path": "out.txt"}
+    assert persisted["rule_triggered"] == "not_allowed"
+    assert persisted["event_hash"] == compute_event_hash(persisted)
 
 
 def test_logger_exposes_last_attestation_for_written_event(tmp_path: Path, contract):
@@ -144,6 +152,7 @@ def test_logger_exposes_last_attestation_for_written_event(tmp_path: Path, contr
     persisted = json.loads((tmp_path / "events.jsonl").read_text(encoding="utf-8").splitlines()[0])
     assert attestation["kind"] == "chronicle_attestation"
     assert attestation["event_hash"] == compute_prev_hash(persisted)
+    assert persisted["event_hash"] == compute_event_hash(persisted)
     assert attestation["sequence_id"] == event.sequence_id
     assert attestation["session_id"] == event.session_id
     assert attestation["tool_name"] == event.tool_name
@@ -176,6 +185,9 @@ def test_logger_log_decision_event_supports_operator_toggle_event(tmp_path: Path
     assert persisted["event_type"] == "elev_op"
     assert persisted["tool_name"] == "__operator__"
     assert persisted["metadata"]["kill_switch_active"] is True
+    assert persisted["rule_triggered"] is None
+    assert persisted["lifecycle_hash"] is None
+    assert persisted["event_hash"] == compute_event_hash(persisted)
 
 
 def test_logger_rejects_sequence_gaps(tmp_path: Path, contract):

@@ -102,15 +102,17 @@ def test_quorum_not_reached_denies_and_reuses_same_pending_request(
     assert request["approvals"] == []
 
     events = _read_events(events_path)
-    assert [event["reason"] for event in events] == [
+    assert events[0]["event_type"] == "session_open"
+    assert events[-1]["event_type"] == "session_close"
+    assert [event["reason"] for event in events[1:-1]] == [
         "approval_request_created",
         "approval_required",
         "approval_required",
     ]
-    assert sum(1 for event in events if event["reason"] == "approval_request_created") == 1
+    assert sum(1 for event in events[1:-1] if event["reason"] == "approval_request_created") == 1
     request_ids = [
         event["metadata"]["approval_context"]["request_id"]
-        for event in events
+        for event in events[1:-1]
     ]
     assert len(set(request_ids)) == 1
 
@@ -145,7 +147,9 @@ def test_same_approver_does_not_count_twice(
     assert [approval["approved_by"] for approval in request["approvals"]] == [_APPROVER_ONE]
 
     events = _read_events(events_path)
-    assert [event["reason"] for event in events] == [
+    assert events[0]["event_type"] == "session_open"
+    assert events[-1]["event_type"] == "session_close"
+    assert [event["reason"] for event in events[1:-1]] == [
         "approval_request_created",
         "approval_required",
         "approval_added",
@@ -191,22 +195,23 @@ def test_quorum_reached_allows_execution_through_existing_override_path(
     assert captured["request"]["headers"]["Authorization"].startswith("Bearer ")
 
     events = _read_events(events_path)
-    assert [event["reason"] for event in events[-2:]] == [
+    assert events[-1]["event_type"] == "session_close"
+    assert [event["reason"] for event in events[-3:-1]] == [
         "approval_quorum_active",
         "approval_quorum_active",
     ]
-    assert [event["event_type"] for event in events[-2:]] == [
+    assert [event["event_type"] for event in events[-3:-1]] == [
         "elev_op",
         "tool_call",
     ]
-    assert events[-1]["decision"] == "allow"
-    assert events[-1]["metadata"]["approval_context"]["request_id"] == request_id
-    assert events[-1]["metadata"]["approval_context"]["approval_count"] == 2
-    assert events[-1]["metadata"]["approval_context"]["approver_ids"] == [
+    assert events[-2]["decision"] == "allow"
+    assert events[-2]["metadata"]["approval_context"]["request_id"] == request_id
+    assert events[-2]["metadata"]["approval_context"]["approval_count"] == 2
+    assert events[-2]["metadata"]["approval_context"]["approver_ids"] == [
         _APPROVER_ONE,
         _APPROVER_TWO,
     ]
-    assert events[-1]["metadata"]["approval_context"]["derived_permit_id"] == second["derived_permit_id"]
+    assert events[-2]["metadata"]["approval_context"]["derived_permit_id"] == second["derived_permit_id"]
 
 
 def test_expired_request_cannot_be_approved_and_is_recreated_on_retry(
@@ -257,13 +262,15 @@ def test_expired_request_cannot_be_approved_and_is_recreated_on_retry(
     assert state_after["requests"][request_id]["status"] == "pending"
 
     events = _read_events(events_path)
-    assert [event["reason"] for event in events] == [
+    assert events[0]["event_type"] == "session_open"
+    assert events[-1]["event_type"] == "session_close"
+    assert [event["reason"] for event in events[1:-1]] == [
         "approval_request_created",
         "approval_required",
         "approval_request_expired",
         "approval_request_created",
         "approval_required",
     ]
-    expired_event = events[2]
+    expired_event = events[3]
     assert expired_event["event_type"] == "elev_op"
     assert expired_event["metadata"]["approval_context"]["status"] == "expired"

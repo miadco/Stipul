@@ -48,6 +48,35 @@ def _event(
     return payload
 
 
+def _lifecycle_event(
+    sequence_id: int,
+    timestamp: str,
+    *,
+    session_id: str,
+    event_type: str,
+    reason: str,
+) -> dict[str, object]:
+    payload = _event(
+        sequence_id,
+        timestamp,
+        session_id=session_id,
+        event_type=event_type,
+        tool_name="placeholder",
+        risk_class="read",
+        decision="allow",
+        reason=reason,
+    )
+    payload["tool_name"] = None
+    payload["risk_class"] = None
+    payload["decision"] = None
+    payload["input_hash"] = None
+    payload["tool_input"] = None
+    payload["rule_triggered"] = None
+    payload["lifecycle_hash"] = None
+    payload["metadata"] = None
+    return payload
+
+
 def _write_events(path: Path, events: list[dict[str, object]]) -> None:
     path.write_text(
         "".join(json.dumps(event, sort_keys=True) + "\n" for event in events),
@@ -228,6 +257,35 @@ def test_cli_history_filters_session_and_applies_recent_limit(tmp_path: Path) ->
     assert "filesystem.read" not in result.stdout
     assert "filesystem.write" not in result.stdout
     assert "Agent attempted network call via web.fetch - denied" in result.stdout
+
+
+def test_cli_history_renders_lifecycle_events_without_decision_labels(tmp_path: Path) -> None:
+    events_path = tmp_path / "events.jsonl"
+    _write_events(
+        events_path,
+        [
+            _lifecycle_event(
+                1,
+                "2026-03-10T00:00:00Z",
+                session_id=_SESSION_A,
+                event_type="session_open",
+                reason="session_started",
+            ),
+            _lifecycle_event(
+                2,
+                "2026-03-10T00:05:00Z",
+                session_id=_SESSION_A,
+                event_type="session_close",
+                reason="session_closed",
+            ),
+        ],
+    )
+
+    result = run_cli("history", "--events", str(events_path))
+
+    assert result.returncode == 0
+    assert "2026-03-10T00:00:00Z session_open session_started session_id=11111111-1111-1111-1111-111111111111" in result.stdout
+    assert "2026-03-10T00:05:00Z session_close session_closed session_id=11111111-1111-1111-1111-111111111111" in result.stdout
 
 
 def test_cli_history_defaults_to_events_jsonl_in_current_directory(

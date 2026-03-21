@@ -222,6 +222,8 @@ def _render_event_summary(event: CanonicalEvent) -> str:
 
 
 def _format_event_line(event: CanonicalEvent) -> str:
+    if event.event_type in {"session_open", "session_close"}:
+        return f"{event.timestamp} {event.event_type} {event.reason} session_id={event.session_id}"
     summary = _render_event_summary(event)
     reason_text = _reason_text(event)
     if reason_text is not None and event.event_type != "elev_op":
