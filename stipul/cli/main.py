@@ -11,6 +11,10 @@ from typing import Any
 from stipul.cli.io import CLIError
 
 _COMMAND_MODULES: dict[str, tuple[str, str]] = {
+    "demo": (
+        "stipul.cli.demo_cmd",
+        "Run packaged Stipul demo flows",
+    ),
     "verify": (
         "stipul.cli.verify_cmd",
         "Verify the authoritative signed events stream for a session",

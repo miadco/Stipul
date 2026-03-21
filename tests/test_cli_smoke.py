@@ -8,8 +8,17 @@ def test_agentshield_help_works() -> None:
 
     assert result.returncode == 0
     assert "usage: stipul" in result.stdout
+    assert "demo" in result.stdout
     assert "verify" in result.stdout
     assert "scan" in result.stdout
+
+
+def test_agentshield_demo_help_works() -> None:
+    result = run_cli("demo", "--help")
+
+    assert result.returncode == 0
+    assert "usage: stipul demo" in result.stdout
+    assert "proof" in result.stdout
 
 
 def test_agentshield_verify_help_works() -> None:
@@ -17,14 +26,17 @@ def test_agentshield_verify_help_works() -> None:
 
     assert result.returncode == 0
     assert "usage: stipul verify" in result.stdout
+    assert "session_dir" in result.stdout
     assert "--session-dir" in result.stdout
 
 
 def test_missing_args_returns_non_zero_with_helpful_error() -> None:
     result = run_cli("verify")
 
-    assert result.returncode != 0
+    assert result.returncode == 2
+    assert "usage: stipul verify" in result.stderr
     assert "error:" in result.stderr.lower()
+    assert "session_dir" in result.stderr
     assert "--session-dir" in result.stderr
 
 
