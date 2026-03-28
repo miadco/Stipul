@@ -25,6 +25,7 @@ def test_secret_in_agent_environment_refuses_startup(caplog) -> None:
         "FATAL: Token secret detected in agent environment." in record.message
         for record in caplog.records
     )
+    assert not any(record.levelno < logging.ERROR for record in caplog.records)
 
 
 def test_token_secret_marker_in_any_key_refuses_startup(caplog) -> None:
@@ -43,7 +44,9 @@ def test_token_secret_marker_in_any_key_refuses_startup(caplog) -> None:
     )
 
 
-def test_secret_absent_in_agent_environment_allows_startup() -> None:
+def test_secret_absent_in_agent_environment_allows_startup(caplog) -> None:
+    caplog.set_level(logging.INFO)
+
     result = check_secret_isolation(
         agent_env={
             "PATH": "/usr/bin",
@@ -55,19 +58,22 @@ def test_secret_absent_in_agent_environment_allows_startup() -> None:
     assert result.check_performed is True
     assert result.source == "agent_env"
     assert result.detected_keys == ()
+    assert caplog.records == []
 
 
-def test_inspection_infeasible_logs_warning_and_proceeds(caplog) -> None:
-    caplog.set_level(logging.WARNING)
+def test_no_inspection_target_logs_info_and_proceeds(caplog) -> None:
+    caplog.set_level(logging.INFO)
 
     result = check_secret_isolation()
 
     assert result.verified is False
     assert result.check_performed is False
+    assert result.source == "no_target"
     assert any(
-        "Token secret isolation could not be verified." in record.message
+        "Token secret isolation was not verified in this attach mode" in record.message
         for record in caplog.records
     )
+    assert not any(record.levelno >= logging.WARNING for record in caplog.records)
 
 
 def test_proc_inspection_error_logs_warning_and_proceeds(monkeypatch, caplog) -> None:
@@ -82,7 +88,9 @@ def test_proc_inspection_error_logs_warning_and_proceeds(monkeypatch, caplog) ->
 
     assert result.verified is False
     assert result.check_performed is False
+    assert result.source == "proc"
     assert any(
-        "Token secret isolation could not be verified." in record.message
+        "Token secret isolation could not be verified because the agent environment could not be inspected."
+        in record.message
         for record in caplog.records
     )
