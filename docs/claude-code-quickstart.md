@@ -9,8 +9,10 @@ Let Claude inspect your codebase. Block writes and shell commands. Verify the se
 ## Step 1 — Install Stipul
 
 ```bash
-pip install stipul
+pipx install stipul
 ```
+
+This installs the `stipul` command globally so Claude Code can find it. If you prefer `pip install stipul`, replace `"command": "stipul"` in `.mcp.json` with the full path from `which stipul`.
 
 ## Step 2 — Create a project directory
 
@@ -40,7 +42,7 @@ This charter puts Claude Code in read-only mode. `file.read` is the only permitt
 ```bash
 cat > charter.yaml << 'EOF'
 schema_version: "1.0"
-contract_id: "demo0001-0001-0001-0001-000000000001"
+contract_id: "de000001-0001-0001-0001-000000000001"
 parent_contract_id: null
 created_at: "2026-01-01T00:00:00Z"
 expires_at: "2099-01-01T00:00:00Z"
@@ -76,7 +78,7 @@ cat > .mcp.json << 'EOF'
         "gateway", "mcp",
         "--contract", "./charter.yaml",
         "--session-dir", "./stipul-session",
-        "--session-id", "demo0001-0001-0001-0001-000000000001",
+        "--session-id", "de000001-0001-0001-0001-000000000001",
         "--runtime", "stipul.examples.demo_runtime:build_runtime"
       ],
       "env": {
@@ -127,7 +129,9 @@ stipul verify ./stipul-session
 
 Expected output:
 
-```
+```text
+Verification receipt
+Session: de000001-0001-0001-0001-000000000001
 Trust: VERIFIED
 Chain: INTACT
 Seal: VALID
@@ -140,6 +144,22 @@ The session stayed read-only, and Stipul can prove it. Every tool call decision 
 ## Enforcement boundaries
 
 Stipul governs tools mounted through its MCP gateway. Claude Code may also have built-in tools outside that surface. A deny from Stipul applies to the governed MCP path, not necessarily to every native capability in the host.
+
+## Optional — Inspect the Chronicle
+
+The verify receipt tells you the session evidence is intact. The Chronicle shows what that evidence contains.
+
+```bash
+jq . ./stipul-session/events.jsonl
+```
+
+You'll see one event per line, including session lifecycle events and each tool-call decision. In this demo, the key events are:
+
+* `file.read` → allowed
+* `shell.exec` → denied
+* `file.read` → allowed
+
+Each event is timestamped and sequenced, so "read-only" is not just a claim — it is an itemized record.
 
 ## Troubleshooting
 
