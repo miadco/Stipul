@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import signal
 from pathlib import Path
 from typing import Any
 
@@ -123,10 +124,21 @@ def run(args: argparse.Namespace) -> int:
                 tool_catalog=tool_catalog,
                 execute_tool=execute_tool,
             )
-            anyio.run(gateway.run_stdio)
-            return 0
+
+            def _sigterm_handler(signum, frame):
+                raise SystemExit(128 + signum)
+
+            previous_sigterm_handler = signal.getsignal(signal.SIGTERM)
+            signal.signal(signal.SIGTERM, _sigterm_handler)
+            try:
+                anyio.run(gateway.run_stdio)
+                return 0
+            finally:
+                signal.signal(signal.SIGTERM, previous_sigterm_handler)
         finally:
             proxy.close()
+    except (KeyboardInterrupt, SystemExit):
+        return 1
     except CLIError:
         raise
     except FileNotFoundError as exc:
