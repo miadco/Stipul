@@ -500,6 +500,8 @@ class ProxyServer:
         self._session_state.closed = self._session_close_written
         if self._session_close_written and seal_path(self.event_logger.store.path.parent).exists():
             self._seal_written = True
+        else:
+            self._seal_written = False
         return last_event
 
     def _terminal_attestation(self) -> dict[str, Any] | None:
