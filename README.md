@@ -62,6 +62,12 @@ This demo runs locally with no external dependencies or framework integration.
 
 If a support agent can read local files and call web tools, you need a record showing which reads were allowed, which outbound requests were denied, and whether that evidence changed after the run. If a coding agent can touch the filesystem and invoke shell commands, you need policy enforcement and a sealed session trail before you let it operate in CI or against a shared repository. If an internal ops agent can inspect tickets, secrets, or deployment tooling, you need verification that the observed tool trace is the same one the runtime authorized.
 
+## Claude Code Integration
+
+Use Stipul to put Claude Code in read-only review mode — allow file reads, block writes and shell commands, verify the session afterward with a sealed receipt.
+
+See the full walkthrough: [Claude Code Quickstart](docs/claude-code-quickstart.md)
+
 ## Links
 
 PyPI: https://pypi.org/project/stipul/
