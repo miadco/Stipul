@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import yaml
 
 from stipul.charter.contract.loader import load_charter
 from stipul.writ.proxy.server import ProxyServer
@@ -46,3 +47,23 @@ def test_proxy_from_contract_path_supports_yaml(tmp_path: Path) -> None:
         assert proxy.contract.contract_id == "2f2c1ef3-5f4e-47a8-a95a-6205fbb86f5f"
     finally:
         proxy.close()
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("max_net_calls", 0),
+        ("max_tool_calls", 0),
+    ],
+)
+def test_proxy_load_contract_accepts_zero_budget_limits(
+    tmp_path: Path, field: str, value: int
+) -> None:
+    payload = yaml.safe_load((FIXTURES_DIR / "base_contract.yaml").read_text(encoding="utf-8"))
+    payload[field] = value
+    contract_path = tmp_path / f"{field}-zero.yaml"
+    contract_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+
+    contract = load_contract(contract_path)
+
+    assert getattr(contract, field) == value
