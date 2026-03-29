@@ -7,17 +7,14 @@ signed_by: null
 identity_agent_id: "demo-agent"
 identity_code_sha256: null
 allowed_tools:
-  - "filesystem.read"
-  - "filesystem.write"
-  - "filesystem.delete"
-  - "web.search"
+  - "file.read"
+  - "file.write"
 never_allow_tools:
   - "shell.exec"
 tool_risk_classes:
-  filesystem.read: "read"
-  filesystem.write: "write"
-  filesystem.delete: "irreversible"
-  web.search: "read"
+  file.read: "read"
+  file.write: "write"
+  shell.exec: "irreversible"
 max_tool_calls: 10
 max_net_calls: 5
 egress_allowlist:
