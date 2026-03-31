@@ -8,8 +8,17 @@ Stipul is a runtime authorization and evidence layer for AI agents. It intercept
 
 ## See it work
 
+Requires Python 3.10+. On systems with externally managed Python environments,
+global pip install may be blocked. Use a virtual environment or pipx.
+
 ```bash
-pip install stipul
+# Recommended — virtual environment
+python3 -m venv .venv
+.venv/bin/pip install stipul
+.venv/bin/stipul demo proof
+
+# Optional — isolated app install via pipx
+pipx install stipul
 stipul demo proof
 ```
 
@@ -27,25 +36,35 @@ Trust: VERIFIED
   Chain: INTACT
   Seal:  VALID
   Decisions: 3
-  Fingerprint: proof-demo | INTACT | VALID | 3 decisions | ca7fe08a
+  Fingerprint: proof-demo | INTACT | VALID | 3 decisions | <hash>
 
 ═══ Tamper Challenge ═══
 
-To test tamper detection, modify the sealed evidence:
-(Verify will show the internal session ID, not "proof-demo". This is the same session.)
+The seal records a cryptographic attestation over the session evidence.
+Inspect it yourself, verify the session as-is, then change a recorded value and re-verify.
 
-  1. Open: /tmp/stipul-proof-demo-6htukemj/session/seal.json
-  2. Find the field "terminal_sequence_id"
-  3. Change its value (e.g., change 4 to 999)
-  4. Save the file
-  5. Run:  stipul verify /tmp/stipul-proof-demo-6htukemj/session
+Step 1 — View the current seal:
 
-Watch Trust: VERIFIED become Trust: REJECTED.
+  cat /tmp/stipul-proof-demo-<id>/session/seal.json | python3 -m json.tool
+
+Step 2 — Verify the session as-is:
+
+  stipul verify /tmp/stipul-proof-demo-<id>/session
+
+Step 3 — Now tamper with the seal:
+
+  sed -i 's/"terminal_sequence_id": <N>/"terminal_sequence_id": 999/' \
+    /tmp/stipul-proof-demo-<id>/session/seal.json
+
+Step 4 — Re-verify the session:
+
+  stipul verify /tmp/stipul-proof-demo-<id>/session
 
 Proof complete: enforcement decisions recorded, chained, and sealed.
 ```
 
-Follow the tamper challenge, rerun `stipul verify`, and watch the trust verdict flip.
+Run the demo locally, follow the tamper challenge steps, and watch the trust
+verdict flip from VERIFIED to REJECTED.
 This demo runs locally with no external dependencies or framework integration.
 
 ## Architecture
