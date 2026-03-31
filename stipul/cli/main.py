@@ -15,6 +15,10 @@ _COMMAND_MODULES: dict[str, tuple[str, str]] = {
         "stipul.cli.demo_cmd",
         "Run packaged Stipul demo flows",
     ),
+    "init": (
+        "stipul.cli.init_cmd",
+        "Write a starter Charter policy to disk",
+    ),
     "verify": (
         "stipul.cli.verify_cmd",
         "Verify the authoritative signed events stream for a session",

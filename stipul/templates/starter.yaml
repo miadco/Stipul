@@ -1,0 +1,23 @@
+schema_version: "1.0"
+contract_id: "a1000001-0001-0001-0001-000000000001"
+parent_contract_id: null
+created_at: "2025-01-01T00:00:00Z"
+expires_at: "2099-01-01T00:00:00Z"
+signed_by: null
+identity_agent_id: "agent.my-agent"
+identity_code_sha256: null
+allowed_tools:
+  - "filesystem.read"
+  - "filesystem.write"
+never_allow_tools:
+  - "filesystem.delete"
+  - "shell.exec"
+tool_risk_classes:
+  filesystem.read: "read"
+  filesystem.write: "write"
+  filesystem.delete: "irreversible"
+  shell.exec: "irreversible"
+max_tool_calls: 50
+max_net_calls: 0
+egress_allowlist: []
+approval_quorum: 1
