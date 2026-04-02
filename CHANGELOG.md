@@ -11,6 +11,10 @@ The format is based on Keep a Changelog, and the project follows Semantic Versio
 - Release discipline for build artifacts, changelog tracking, and tag-driven packaging workflows.
 - Single-source package versioning, wheel/sdist smoke validation, and release artifact checksums.
 
+## [0.2.1] - 2026-04-01
+- fix: starter charter template now included in PyPI distribution (`stipul init` works on fresh install)
+- fix: demo tamper challenge uses `stipul verify` instead of `.venv` path
+
 ## [0.2.0] - 2026-04-01
 - feat: `stipul init` command — writes a starter Charter policy to disk with `--output` and `--force` options
 - feat: `stipul report` command — human-readable five-question Chronicle summary with fresh cryptographic verification
