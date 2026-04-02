@@ -62,3 +62,20 @@ def test_demo_proof_prints_verified_receipt_and_tamper_payoff() -> None:
         assert "Seal: INVALID" in verify_result.stdout
     finally:
         shutil.rmtree(session_dir.parent, ignore_errors=True)
+
+
+def test_demo_proof_session_id_is_real_uuid() -> None:
+    import uuid as _uuid
+
+    result = run_cli("demo", "proof")
+    assert result.returncode == 0
+    session_dir = _session_dir_from_output(result.stdout)
+    try:
+        first_line = (session_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()[0]
+        session_id = json.loads(first_line)["session_id"]
+        parsed = _uuid.UUID(session_id)
+        assert session_id != "11111111-1111-1111-1111-111111111111"
+        assert parsed.version == 4
+        assert str(parsed) == session_id
+    finally:
+        shutil.rmtree(session_dir.parent, ignore_errors=True)

@@ -126,23 +126,28 @@ def _format_scalar(value: Any, *, quote_strings: bool) -> str | None:
 
 
 def _tool_input_summary(event: CanonicalEvent) -> str:
-    if event.event_type != "tool_call":
+    fields: dict[str, Any] | None
+    if event.event_type == "tool_call":
+        fields = event.tool_input
+    elif event.event_type == "net_call" and isinstance(event.metadata, dict):
+        fields = event.metadata
+    else:
         return _NO_ADDITIONAL_DETAILS
-    if event.tool_input is None:
+    if fields is None:
         return _NO_ADDITIONAL_DETAILS
-    if not event.tool_input:
+    if not fields:
         return "no input fields"
 
     parts: list[str] = []
     seen: set[str] = set()
     for key in _TARGET_KEYS:
-        if key in event.tool_input:
-            rendered = _format_scalar(event.tool_input[key], quote_strings=False)
+        if key in fields:
+            rendered = _format_scalar(fields[key], quote_strings=False)
             if rendered is not None:
                 parts.append(f"{key}={rendered}")
                 seen.add(key)
 
-    for key, value in event.tool_input.items():
+    for key, value in fields.items():
         if key in seen:
             continue
         rendered = _format_scalar(value, quote_strings=True)
@@ -155,7 +160,7 @@ def _tool_input_summary(event: CanonicalEvent) -> str:
     if parts:
         return ", ".join(parts)
 
-    field_names = ", ".join(sorted(event.tool_input.keys())[:3])
+    field_names = ", ".join(sorted(fields.keys())[:3])
     return f"fields: {field_names}"
 
 
@@ -231,14 +236,17 @@ def _event_details_text(
 
 
 def _tool_input_phrase(event: CanonicalEvent) -> str | None:
-    if event.tool_input is None:
+    fields = event.tool_input
+    if event.event_type == "net_call" and isinstance(event.metadata, dict):
+        fields = event.metadata
+    if fields is None:
         return None
     summary = _tool_input_summary(event)
     if summary == _NO_ADDITIONAL_DETAILS:
         return None
     if summary == "no input fields":
         return "with no input fields"
-    if any(key in event.tool_input for key in _TARGET_KEYS):
+    if any(key in fields for key in _TARGET_KEYS):
         return f"on {summary}"
     return f"with {summary}"
 
@@ -328,7 +336,7 @@ def _build_attempts(events: list[CanonicalEvent]) -> tuple[list[ToolAttempt], di
     attempts: list[ToolAttempt] = []
     grouped_to_tool_call: dict[int, int] = {}
     for index, event in enumerate(events):
-        if event.event_type != "tool_call":
+        if event.event_type not in {"tool_call", "net_call"}:
             continue
         grouped = _grouped_context(events, index)
         for grouped_event in grouped:

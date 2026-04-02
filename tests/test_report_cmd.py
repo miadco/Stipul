@@ -98,3 +98,44 @@ def test_report_renders_real_proxy_approval_gate_session(
     assert "request_id" not in result.stdout
     assert "chain_integrity" not in result.stdout
     assert "pre_close_chain_integrity" not in result.stdout
+
+
+def test_report_section_2_includes_denied_net_call(
+    tmp_path: Path,
+    monkeypatch,
+    base_dict,
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
+
+    contract_payload = json.loads(json.dumps(base_dict))
+    contract_payload["allowed_tools"] = sorted(
+        {*contract_payload["allowed_tools"], "web.search"}
+    )
+    contract_payload["egress_allowlist"] = ["api.example.com"]
+    contract_path, contract = write_contract_file(tmp_path, contract_payload)
+
+    session_dir = tmp_path / "net-call-session"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    proxy = ProxyServer.from_contract_path(
+        contract_path,
+        session_id=DEFAULT_SESSION_ID,
+        events_path=session_dir / "events.jsonl",
+    )
+    try:
+        proxy.handle_tool_call(
+            {
+                "tool_name": "web.search",
+                "inputs": {"egress_target": "evil.example.com"},
+                "metadata": {"egress_target": "evil.example.com"},
+            },
+            lambda _request: {"ok": True},
+        )
+    finally:
+        proxy.close()
+
+    result = run_cli("report", str(session_dir))
+    assert result.returncode == 0
+    section_2 = result.stdout.split("2. What did the agent try to do?")[1].split("3. What did Stipul decide")[0]
+    assert "web.search" in section_2
+    assert "evil.example.com" in section_2

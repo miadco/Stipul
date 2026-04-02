@@ -6,6 +6,7 @@ import argparse
 import logging
 import os
 import tempfile
+import uuid
 from contextlib import contextmanager
 from importlib.resources import as_file, files
 from pathlib import Path
@@ -17,7 +18,6 @@ from stipul.writ.proxy.server import ProxyServer
 
 _DEMO_LABEL = "proof-demo"
 _DEMO_TOKEN_SECRET = "stipul-demo-secret"
-_INTERNAL_SESSION_ID = "11111111-1111-1111-1111-111111111111"
 
 
 def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -75,12 +75,13 @@ def _demo_environment(root: Path) -> Iterator[None]:
 
 def _run_proof_session(session_dir: Path, charter_path: Path) -> None:
     proxy: ProxyServer | None = None
+    session_id = str(uuid.uuid4())
     with _demo_environment(session_dir.parent), _suppress_startup_warning():
         try:
             proxy = ProxyServer.from_contract_path(
                 charter_path,
                 # Canonical Chronicle events still require a UUID session_id.
-                session_id=_INTERNAL_SESSION_ID,
+                session_id=session_id,
                 events_path=session_dir / "events.jsonl",
             )
             proxy.handle_tool_call(
