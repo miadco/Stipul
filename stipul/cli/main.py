@@ -31,6 +31,10 @@ _COMMAND_MODULES: dict[str, tuple[str, str]] = {
         "stipul.cli.history_cmd",
         "Render a human-readable timeline from authoritative Chronicle events",
     ),
+    "report": (
+        "stipul.cli.report_cmd",
+        "Render a plain-language report from one Chronicle session",
+    ),
     "gateway": (
         "stipul.cli.gateway_cmd",
         "Launch the MCP gateway over the existing proxy core",
