@@ -121,6 +121,9 @@ def _assert_session_close(event: dict[str, Any], previous_event: dict[str, Any])
     assert event["input_hash"] is None
     assert event["prev_hash"] == compute_prev_hash(previous_event)
     assert event["event_hash"] == compute_event_hash(event)
+    metadata = event["metadata"]
+    assert "chain_integrity" not in metadata
+    assert metadata["pre_close_chain_integrity"] == "intact"
 
 
 @pytest.mark.signed_chain
@@ -333,6 +336,9 @@ def test_verify_chain_accepts_real_proxy_approval_gate_path(
         assert attestation["decision"] is None
         assert attestation["event_type"] == "session_close"
         assert attestation["reason"] == "session_closed"
+        assert session_close["metadata"]["total_approval_required"] == 1
+        assert session_close["metadata"]["total_denied"] == 1
+        assert session_close["metadata"]["total_calls"] == 1
         _assert_session_close(session_close, approval_denied)
 
         result = verify_chain(events_path, keypair.public_key, contract)

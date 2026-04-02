@@ -141,7 +141,8 @@ def test_session_close_writes_all_outputs(
     assert session_state.closed is True
     summary_payload = json.loads(session_state.summary_path.read_text(encoding="utf-8"))
     assert summary_payload["session_id"] == session_state.session_id
-    assert summary_payload["chain_integrity"] == "intact"
+    assert "chain_integrity" not in summary_payload
+    assert summary_payload["pre_close_chain_integrity"] == "intact"
     lines = [line for line in session_state.decisions_path.read_text(encoding="utf-8").splitlines() if line]
     assert len(lines) == 5
     assert summary.total_calls == 5
