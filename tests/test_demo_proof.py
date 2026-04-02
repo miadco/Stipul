@@ -10,7 +10,7 @@ from tests.cli_support import run_cli
 
 def _session_dir_from_output(stdout: str) -> Path:
     match = re.search(
-        r"^\s*\.venv/bin/python -m stipul\.cli\.main verify (?P<session>.+)$",
+        r"^\s*stipul verify (?P<session>.+)$",
         stdout,
         re.MULTILINE,
     )

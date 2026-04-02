@@ -195,7 +195,7 @@ def _render_output(session_dir: Path) -> str:
         f"'s/\"terminal_sequence_id\": {terminal_sequence_id}/\"terminal_sequence_id\": 999/' "
         f"{seal_path}"
     )
-    verify_cmd = f".venv/bin/python -m stipul.cli.main verify {session_path}"
+    verify_cmd = f"stipul verify {session_path}"
 
     lines = [
         "═══ Stipul Proof Demo ═══",
