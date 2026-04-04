@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Mapping
+from typing import TYPE_CHECKING, Any, Callable, Mapping, cast
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -1314,12 +1314,16 @@ class ProxyServer:
         request_metadata: dict[str, Any] | None = None,
     ) -> Any:
         if override_metadata is not None:
+            override_event_metadata = cast(
+                dict[str, Any],
+                _merge_metadata(request_metadata, override_metadata),
+            )
             self._emit_override_event(
                 tool_name=tool_name,
                 risk_class=risk_class,
                 reason=reason,
                 input_hash=input_hash,
-                metadata=_merge_metadata(request_metadata, override_metadata),
+                metadata=override_event_metadata,
             )
         token = mint_token(
             tool_name=tool_name,
@@ -1432,7 +1436,6 @@ class ProxyServer:
                 )
             except ValueError as exc:
                 _LOGGER.error("Delegation validation unavailable; denying call", exc_info=exc)
-                delegation_validation = None
                 delegation_metadata = {
                     "delegation_context": {
                         "chain_depth": (
@@ -1670,10 +1673,10 @@ class ProxyServer:
             )
 
             if approval_request.status == "approved" and approval_request.derived_permit is not None:
-                permit = _permit_from_dict(approval_request.derived_permit)
-                if permit is not None:
+                approved_permit = _permit_from_dict(approval_request.derived_permit)
+                if approved_permit is not None:
                     response = self._try_forward_with_permit(
-                        permit,
+                        approved_permit,
                         raw_request,
                         forward_call,
                         tool_name=result.tool_name,

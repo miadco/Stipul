@@ -140,7 +140,14 @@ class ControlSidecar:
         thread = Thread(target=server.serve_forever, daemon=True)
         thread.start()
 
-        bound_host, bound_port = server.server_address
+        server_address = server.server_address
+        bound_host_value = server_address[0]
+        bound_host = (
+            bound_host_value.decode("utf-8", errors="replace")
+            if isinstance(bound_host_value, bytes)
+            else str(bound_host_value)
+        )
+        bound_port = int(server_address[1])
         self._server = server
         self._thread = thread
         self._base_url = f"http://{bound_host}:{bound_port}"

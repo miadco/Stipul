@@ -7,7 +7,7 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Mapping, cast
 
 _TOKEN_SECRET_MARKER = "TOKEN_SECRET"  # nosec B105
 _FATAL_SECRET_MESSAGE = (
@@ -77,7 +77,7 @@ def _inspect_agent_environment(
         return dict(agent_env or {}), source
 
     if source == "proc":
-        return _read_linux_proc_environ(agent_pid), source
+        return _read_linux_proc_environ(cast(int, agent_pid)), source
 
     if source == "current_process":
         return dict(os.environ), source

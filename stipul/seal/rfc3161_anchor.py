@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
@@ -105,7 +105,7 @@ def _build_timestamp_request(message_imprint: bytes) -> bytes:
             "cert_req": True,
         }
     )
-    return request.dump()
+    return cast(bytes, request.dump())
 
 
 def _validate_tsa_url(tsa_url: str) -> str:
@@ -209,7 +209,7 @@ def _extract_tst_info(encap_content_info: cms.ContentInfo) -> dict[str, Any]:
     if not tst_info_der:
         raise ValueError("Malformed RFC 3161 response: missing TSTInfo payload")
     try:
-        return tsp.TSTInfo.load(tst_info_der).native
+        return cast(dict[str, Any], tsp.TSTInfo.load(tst_info_der).native)
     except Exception as exc:
         raise ValueError(f"Malformed RFC 3161 response: invalid TSTInfo payload: {exc}") from exc
 

@@ -75,11 +75,11 @@ class MCPGateway:
             instructions=self.instructions,
         )
 
-        @self.server.list_tools()
+        @self.server.list_tools()  # type: ignore[no-untyped-call,untyped-decorator]
         async def list_tools() -> list[types.Tool]:
             return list(self._current_tools())
 
-        @self.server.call_tool()
+        @self.server.call_tool()  # type: ignore[untyped-decorator]
         async def call_tool(tool_name: str, arguments: dict[str, Any]) -> types.CallToolResult:
             raw_request = {
                 "tool_name": tool_name,

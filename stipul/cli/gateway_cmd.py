@@ -125,7 +125,7 @@ def run(args: argparse.Namespace) -> int:
                 execute_tool=execute_tool,
             )
 
-            def _sigterm_handler(signum, frame):
+            def _sigterm_handler(signum: int, frame: Any) -> None:
                 raise SystemExit(128 + signum)
 
             previous_sigterm_handler = signal.getsignal(signal.SIGTERM)
