@@ -87,11 +87,11 @@ def _string_field(mapping: dict[str, Any] | None, key: str) -> str | None:
 
 
 def _single_value(events: list[CanonicalEvent], field_name: str) -> str:
-    values = {
-        getattr(event, field_name)
-        for event in events
-        if isinstance(getattr(event, field_name), str) and getattr(event, field_name)
-    }
+    values: set[str] = set()
+    for event in events:
+        value = getattr(event, field_name)
+        if isinstance(value, str) and value:
+            values.add(value)
     if len(values) != 1:
         raise ValueError(f"Expected exactly one {field_name} in session events")
     return next(iter(values))
@@ -190,7 +190,7 @@ def _display_tool_name(tool_name: str | None) -> str | None:
     if tool_name == "__operator__":
         return "operator control"
     if tool_name == "__proxy__":
-        return "proxy control"
+        return "Writ enforcement control"
     return tool_name
 
 
@@ -267,7 +267,7 @@ def _outcome_sentence(event: CanonicalEvent) -> str:
         return f"{tool_name} was denied."
     if event.decision == "allow":
         if event.reason == "risk_class" and event.rule_triggered == "risk_class":
-            return f"{tool_name} was allowed under the contract's risk class policy."
+            return f"{tool_name} was allowed under the charter's risk class policy."
         return f"{tool_name} was allowed."
     return f"{tool_name} did not have a recorded outcome."
 
@@ -363,7 +363,7 @@ def _render_session_section(events: list[CanonicalEvent]) -> list[str]:
     return [
         "1. What session is this?",
         f"Session ID: {session_id}",
-        f"Contract ID: {contract_id}",
+        f"Charter ID: {contract_id}",
         f"Time range: {started} to {ended}",
     ]
 

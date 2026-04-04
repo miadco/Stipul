@@ -71,7 +71,7 @@ def test_report_renders_real_proxy_approval_gate_session(
         [
             "1. What session is this?",
             f"Session ID: {DEFAULT_SESSION_ID}",
-            f"Contract ID: {contract.contract_id}",
+            f"Charter ID: {contract.contract_id}",
             f"Time range: {events[0]['timestamp']} to {events[3]['timestamp']}",
             "",
             "2. What did the agent try to do?",

@@ -47,5 +47,5 @@ def run(args: argparse.Namespace) -> int:
     with _starter_charter_path() as charter_path:
         output.write_bytes(charter_path.read_bytes())
     print(f"Wrote starter charter to {output}")
-    print(f"Next: edit {output} and run: stipul lint-contract {output}")
+    print(f"Next: edit this Charter at {output} and run: stipul lint-contract {output}")
     return 0

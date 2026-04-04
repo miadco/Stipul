@@ -37,7 +37,7 @@ _COMMAND_MODULES: dict[str, tuple[str, str]] = {
     ),
     "gateway": (
         "stipul.cli.gateway_cmd",
-        "Launch the MCP gateway over the existing proxy core",
+        "Launch the Writ enforcement proxy as an MCP server",
     ),
     "lint-contract": (
         "stipul.cli.lint_contract_cmd",
