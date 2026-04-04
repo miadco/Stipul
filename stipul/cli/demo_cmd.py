@@ -17,7 +17,7 @@ from stipul.cli.verify_cmd import trust_status, verify_session
 from stipul.writ.proxy.server import ProxyServer
 
 _DEMO_LABEL = "proof-demo"
-_DEMO_TOKEN_SECRET = "stipul-demo-secret"
+_DEMO_TOKEN_SECRET = "stipul-demo-secret"  # nosec B105 - intentional non-production demo secret
 
 
 def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
