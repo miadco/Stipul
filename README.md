@@ -99,15 +99,24 @@ stipul report <session-dir>
 ```
 
 ```text
+1. What session is this?
+Session ID: aa4373bc-c136-4deb-b462-0648a467555c
+Charter ID: d3a00001-0001-0001-0001-000000000001
+Time range: 2026-04-09T01:23:07.357093Z to 2026-04-09T01:23:07.370300Z
+
 2. What did the agent try to do?
 1. Attempted filesystem.read on path=/docs/report.md.
 2. Attempted web.search on egress_target=evil.example.com.
 3. Attempted shell.exec with command="rm -rf /".
 
 3. What did Stipul decide for each one?
-1. filesystem.read was allowed under the contract's risk class policy. (seq 2)
+1. filesystem.read was allowed under the charter's risk class policy. (seq 2)
 2. web.search was denied. Reason: not in egress allowlist. Rule: egress not allowed. (seq 3)
 3. shell.exec was denied. Reason: never allow tools. Rule: never allow tools. (seq 4)
+
+4. Did anything policy-significant happen?
+1. A call was denied by policy. Tool: web.search. Reason: not in egress allowlist. Rule: egress not allowed. Details: egress_target=evil.example.com. (seq 3)
+2. A call was denied by policy. Tool: shell.exec. Reason: never allow tools. Rule: never allow tools. Details: command="rm -rf /". (seq 4)
 
 5. Can I trust this record?
 Fresh verification only.
