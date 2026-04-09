@@ -16,7 +16,6 @@ from stipul.cli.io import CLIError, read_jsonl, sha256_bytes
 from stipul.cli.verify_cmd import trust_status, verify_session
 from stipul.writ.proxy.server import ProxyServer
 
-_DEMO_LABEL = "proof-demo"
 _DEMO_TOKEN_SECRET = "stipul-demo-secret"  # nosec B105 - intentional non-production demo secret
 
 
@@ -120,6 +119,14 @@ def _proof_events(session_dir: Path) -> list[dict[str, object]]:
     return read_jsonl(session_dir / "events.jsonl")
 
 
+def _session_id(events: list[dict[str, object]]) -> str:
+    for event in events:
+        session_id = event.get("session_id")
+        if isinstance(session_id, str) and session_id:
+            return session_id
+    raise CLIError("Demo produced no session_id in Chronicle events", exit_code=3)
+
+
 def _display_reason(event: dict[str, object]) -> str | None:
     reason = event.get("reason")
     if not isinstance(reason, str) or not reason:
@@ -155,6 +162,7 @@ def _replay_rows(events: list[dict[str, object]]) -> tuple[list[str], int]:
 
 def _render_output(session_dir: Path) -> str:
     events = _proof_events(session_dir)
+    session_id = _session_id(events)
     replay_rows, display_event_count = _replay_rows(events)
     if not replay_rows:
         raise CLIError("Demo produced no replayable Chronicle events", exit_code=3)
@@ -201,7 +209,7 @@ def _render_output(session_dir: Path) -> str:
     lines = [
         "═══ Stipul Proof Demo ═══",
         "",
-        f"Session: {_DEMO_LABEL}",
+        f"Session: {session_id}",
         "",
         *replay_rows,
         "",
@@ -210,7 +218,7 @@ def _render_output(session_dir: Path) -> str:
         f"  Seal:  {verification.seal_result.status}",
         f"  Decisions: {display_event_count}",
         (
-            f"  Fingerprint: {_DEMO_LABEL} | {verification.chain_result.status} | "
+            f"  Fingerprint: {session_id} | {verification.chain_result.status} | "
             f"{verification.seal_result.status} | {display_event_text} | {seal_fingerprint}"
         ),
         "",

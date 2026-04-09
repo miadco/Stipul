@@ -9,18 +9,27 @@ Let Claude inspect your codebase. Block writes and shell commands. Verify the se
 ## Step 1 — Install Stipul
 
 ```bash
-pipx install stipul
+pip install stipul
 ```
 
-This installs the `stipul` command globally so Claude Code can find it. If you prefer `pip install stipul`, replace `"command": "stipul"` in `.mcp.json` with the full path from `which stipul`.
+## Step 2 — Prove the packaged path first
 
-## Step 2 — Create a project directory
+```bash
+stipul init
+stipul demo proof
+stipul verify <session-dir>
+stipul report <session-dir>
+```
+
+Use the `<session-dir>` path printed by `stipul demo proof`.
+
+## Step 3 — Create a project directory
 
 ```bash
 mkdir stipul-demo && cd stipul-demo
 ```
 
-## Step 3 — Set the token secret
+## Step 4 — Set the token secret
 
 Stipul signs authorization tokens with a secret. This is required for the gateway path used in this demo.
 
@@ -28,16 +37,16 @@ Stipul signs authorization tokens with a secret. This is required for the gatewa
 export STIPUL_TOKEN_SECRET=$(openssl rand -hex 32)
 ```
 
-## Step 4 — Create sample files
+## Step 5 — Create sample files
 
 ```bash
 printf 'hello\n' > review-1.txt
 printf 'world\n' > review-2.txt
 ```
 
-## Step 5 — Create the charter
+## Step 6 — Create the charter
 
-This charter puts Claude Code in read-only mode. `file.read` is the only permitted tool. Both `file.write` and `shell.exec` are unconditionally denied — the agent can look at everything but can't change or run anything.
+This charter puts Claude Code in read-only mode. `filesystem.read` is the only permitted tool. Both `filesystem.write` and `shell.exec` are unconditionally denied. The agent can inspect files but cannot modify them or execute commands.
 
 ```bash
 cat > charter.yaml << 'EOF'
@@ -50,13 +59,13 @@ signed_by: null
 identity_agent_id: "claude-code-review"
 identity_code_sha256: null
 allowed_tools:
-  - "file.read"
+  - "filesystem.read"
 never_allow_tools:
-  - "file.write"
+  - "filesystem.write"
   - "shell.exec"
 tool_risk_classes:
-  file.read: "read"
-  file.write: "write"
+  filesystem.read: "read"
+  filesystem.write: "write"
   shell.exec: "irreversible"
 max_tool_calls: 10
 max_net_calls: 0
@@ -64,7 +73,7 @@ egress_allowlist: []
 EOF
 ```
 
-## Step 6 — Create the MCP configuration
+## Step 7 — Create the MCP configuration
 
 This tells Claude Code to route tool calls through Stipul's gateway. Every decision — allow or deny — is recorded in `./stipul-session/`.
 
@@ -90,7 +99,7 @@ cat > .mcp.json << 'EOF'
 EOF
 ```
 
-## Step 7 — Launch Claude Code
+## Step 8 — Launch Claude Code
 
 Launch Claude Code from this directory so it picks up the local `.mcp.json` configuration.
 
@@ -98,22 +107,22 @@ Launch Claude Code from this directory so it picks up the local `.mcp.json` conf
 claude
 ```
 
-## Step 8 — Run three prompts
+## Step 9 — Run three prompts
 
 Send these three prompts in order:
 
 **Prompt 1** — read a file (expect: allowed):
-> Use the file.read tool to read ./review-1.txt
+> Use the filesystem.read tool to read ./review-1.txt
 
 **Prompt 2** — run a command (expect: denied):
 > Use the shell.exec tool to run ls
 
 **Prompt 3** — read another file (expect: allowed):
-> Use the file.read tool to read ./review-2.txt
+> Use the filesystem.read tool to read ./review-2.txt
 
 A deny does not end the session. Claude can continue using permitted tools afterward.
 
-## Step 9 — Exit Claude Code
+## Step 10 — Exit Claude Code
 
 Exit Claude Code cleanly before running verify so the session can close and seal.
 
@@ -121,7 +130,7 @@ Exit Claude Code cleanly before running verify so the session can close and seal
 /exit
 ```
 
-## Step 10 — Verify the session
+## Step 11 — Verify the session
 
 ```bash
 stipul verify ./stipul-session
@@ -155,9 +164,9 @@ jq . ./stipul-session/events.jsonl
 
 You'll see one event per line, including session lifecycle events and each tool-call decision. In this demo, the key events are:
 
-* `file.read` → allowed
+* `filesystem.read` → allowed
 * `shell.exec` → denied
-* `file.read` → allowed
+* `filesystem.read` → allowed
 
 Each event is timestamped and sequenced, so "read-only" is not just a claim — it is an itemized record.
 

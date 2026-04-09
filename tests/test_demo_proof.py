@@ -22,7 +22,6 @@ def test_demo_proof_prints_verified_receipt_and_tamper_payoff() -> None:
     result = run_cli("demo", "proof")
 
     assert result.returncode == 0
-    assert "Session: proof-demo" in result.stdout
     assert "reason: allowed_tool" in result.stdout
     assert "Trust: VERIFIED" in result.stdout
     assert "  Decisions: 3" in result.stdout
@@ -37,10 +36,19 @@ def test_demo_proof_prints_verified_receipt_and_tamper_payoff() -> None:
     seal_path = session_dir / "seal.json"
 
     try:
+        session_match = re.search(
+            r"^Session: (?P<session_id>[0-9a-f-]{36})$",
+            result.stdout,
+            re.MULTILINE,
+        )
+        assert session_match is not None
+        session_id = session_match.group("session_id")
+
         assert session_dir.is_absolute()
         assert session_dir.exists()
         assert seal_path.exists()
         assert str(seal_path) in result.stdout
+        assert f"  Fingerprint: {session_id} | INTACT | VALID | 3 decisions | " in result.stdout
 
         seal_payload = json.loads(seal_path.read_text(encoding="utf-8"))
         assert (

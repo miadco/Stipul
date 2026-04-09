@@ -14,6 +14,12 @@ Install the CLI from PyPI for Python 3.10+.
 pip install stipul
 ```
 
+Write a starter Charter in the current directory.
+
+```bash
+stipul init
+```
+
 Run the proof demo; it uses the packaged demo Charter at `stipul/demo/demo_charter.yaml`.
 
 ```bash
@@ -25,7 +31,7 @@ Your session directory, UUID, fingerprint, timestamps, and key ID will differ on
 ```text
 ═══ Stipul Proof Demo ═══
 
-Session: proof-demo
+Session: 2553f1a1-4f30-4459-8d71-e392f7e99026
 
   seq 1  allow   filesystem.read      reason: allowed_tool
   seq 2  deny    web.search           reason: not_in_egress_allowlist
@@ -36,7 +42,7 @@ Trust: VERIFIED
   Chain: INTACT
   Seal:  VALID
   Decisions: 3
-  Fingerprint: proof-demo | INTACT | VALID | 3 decisions | fbac1645
+  Fingerprint: 2553f1a1-4f30-4459-8d71-e392f7e99026 | INTACT | VALID | 3 decisions | fbac1645
 
 ═══ Tamper Challenge ═══
 
