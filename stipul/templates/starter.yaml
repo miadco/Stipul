@@ -1,0 +1,44 @@
+# Format version. Leave this alone unless Stipul tells you to upgrade it.
+schema_version: "1.0"
+# Unique Charter ID. Replace this when you create a real policy for your app.
+contract_id: "a1000001-0001-0001-0001-000000000001"
+# Parent Charter ID for inheritance. Leave null unless you are intentionally deriving from another Charter.
+parent_contract_id: null
+# When this Charter becomes valid. The starter timestamp is fine for a first local run.
+created_at: "2025-01-01T00:00:00Z"
+# When this Charter stops working. Set a real expiry before you rely on it outside testing.
+expires_at: "2099-01-01T00:00:00Z"
+# Optional signer identity. Leave null until you have a signing workflow.
+signed_by: null
+# Start here: set this to the exact agent ID your framework sends with tool calls.
+# If the runtime sends a different ID, every tool call is denied before tool policy is checked.
+identity_agent_id: "agent.my-agent"
+# Optional code hash pin. Leave null unless you want this Charter tied to one exact build.
+identity_code_sha256: null
+# Edit this next. Only tools listed here can run, so start small and add tools as needed.
+allowed_tools:
+  - "filesystem.read"
+  - "filesystem.write"
+# Put tools here when you never want the agent to use them, even if other rules would allow them.
+# Use this for hard no actions like deletes or shell access.
+never_allow_tools:
+  - "filesystem.delete"
+  - "shell.exec"
+# Keep this in sync with allowed_tools. Missing entries default to write, so be explicit.
+# read/write run directly; irreversible/exfil_risk pause for approval.
+tool_risk_classes:
+  filesystem.read: "read"
+  filesystem.write: "write"
+  filesystem.delete: "irreversible"
+  shell.exec: "irreversible"
+# Hard cap on total tool calls for one run. This stops runaway tool loops if the agent gets stuck.
+# 50 is a reasonable starter default for many agent flows.
+max_tool_calls: 50
+# Hard cap on network-using calls. 0 is the safest default and keeps the agent off the network.
+max_net_calls: 0
+# Add exact hosts, or a suffix like .example.com, only when you intentionally allow outbound access.
+# Leaving this too open can let the agent reach beyond what you intended; [] blocks all egress by default.
+egress_allowlist: []
+# Number of approvals required for tools that pause for approval.
+# Leave this at 1 unless you truly need multi-person approval for higher-risk actions.
+approval_quorum: 1

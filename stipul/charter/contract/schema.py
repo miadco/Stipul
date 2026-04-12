@@ -90,6 +90,14 @@ def _parse_positive_int(field: str, value: Any) -> int:
     return int(value)
 
 
+def _parse_non_negative_int(field: str, value: Any) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ContractValidationError(f"{field} must be an integer")
+    if value < 0:
+        raise ContractValidationError(f"{field} must be >= 0")
+    return int(value)
+
+
 def _parse_str_frozenset(field: str, value: Any) -> frozenset[str]:
     if not isinstance(value, (list, tuple, set, frozenset)):
         raise ContractValidationError(f"{field} must be a list of strings")
@@ -243,10 +251,10 @@ class Contract:
             if tool not in tool_risk_classes:
                 tool_risk_classes[tool] = RiskClass.WRITE
 
-        max_tool_calls = _parse_positive_int(
+        max_tool_calls = _parse_non_negative_int(
             "max_tool_calls", _required(data, "max_tool_calls")
         )
-        max_net_calls = _parse_positive_int(
+        max_net_calls = _parse_non_negative_int(
             "max_net_calls", _required(data, "max_net_calls")
         )
         approval_quorum = _parse_positive_int(

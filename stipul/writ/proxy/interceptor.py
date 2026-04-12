@@ -20,6 +20,7 @@ class InterceptResult:
     decision: str
     reason: str
     risk_class: str
+    rule_triggered: str | None
 
 
 def _risk_to_wire(risk: RiskClass) -> str:
@@ -69,6 +70,7 @@ def _fallback(tool_name: str, input_hash: str, reason: str) -> InterceptResult:
         decision="deny",
         reason=reason,
         risk_class="write",
+        rule_triggered=None,
     )
 
 
@@ -117,4 +119,5 @@ def intercept(raw_request: dict[str, Any], contract: Contract) -> InterceptResul
         decision=policy_result.decision,
         reason=_reason_code(policy_result.rule_triggered),
         risk_class=_risk_to_wire(policy_result.risk_class),
+        rule_triggered=policy_result.rule_triggered,
     )

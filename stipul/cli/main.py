@@ -11,6 +11,14 @@ from typing import Any
 from stipul.cli.io import CLIError
 
 _COMMAND_MODULES: dict[str, tuple[str, str]] = {
+    "demo": (
+        "stipul.cli.demo_cmd",
+        "Run packaged Stipul demo flows",
+    ),
+    "init": (
+        "stipul.cli.init_cmd",
+        "Write a starter Charter policy to disk",
+    ),
     "verify": (
         "stipul.cli.verify_cmd",
         "Verify the authoritative signed events stream for a session",
@@ -23,9 +31,13 @@ _COMMAND_MODULES: dict[str, tuple[str, str]] = {
         "stipul.cli.history_cmd",
         "Render a human-readable timeline from authoritative Chronicle events",
     ),
+    "report": (
+        "stipul.cli.report_cmd",
+        "Render a plain-language report from one Chronicle session",
+    ),
     "gateway": (
         "stipul.cli.gateway_cmd",
-        "Launch the MCP gateway over the existing proxy core",
+        "Launch the Writ enforcement proxy as an MCP server",
     ),
     "lint-contract": (
         "stipul.cli.lint_contract_cmd",

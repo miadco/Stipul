@@ -3,8 +3,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from stipul.seal.builder import seal_path as resolve_seal_path
+import yaml
+
+from stipul.seal.builder import (
+    build_session_seal,
+    seal_path as resolve_seal_path,
+    write_seal,
+)
+from stipul.seal.signer import sign_seal
 from stipul.seal.verifier import verify_seal
+from stipul.utils.canonical import compute_prev_hash
 from stipul.writ.proxy.server import ProxyServer
 
 from tests.cli_support import (
@@ -37,6 +45,14 @@ def _receipt_lines(stdout: str) -> list[str]:
     return stdout.strip().splitlines()
 
 
+def _expected_trust(chain_status: str, seal_status: str) -> str:
+    if chain_status == "INTACT" and seal_status == "VALID":
+        return "VERIFIED"
+    if chain_status == "INTACT" and seal_status == "ABSENT":
+        return "UNVERIFIED (unsealed)"
+    return "REJECTED"
+
+
 def _assert_receipt(
     stdout: str,
     *,
@@ -45,9 +61,10 @@ def _assert_receipt(
     session_id: str = DEFAULT_SESSION_ID,
 ) -> list[str]:
     lines = _receipt_lines(stdout)
-    assert lines[:4] == [
+    assert lines[:5] == [
         "Verification receipt",
         f"Session: {session_id}",
+        f"Trust: {_expected_trust(chain_status, seal_status)}",
         f"Chain: {chain_status}",
         f"Seal: {seal_status}",
     ]
@@ -57,6 +74,191 @@ def _assert_receipt(
 
 def _line_with_prefix(lines: list[str], prefix: str) -> str | None:
     return next((line for line in lines if line.startswith(prefix)), None)
+
+
+def _write_yaml_contract(path: Path, payload: dict[str, object]) -> Path:
+    path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    return path
+
+
+def _write_synthetic_seal(session_dir: Path, events_path: Path, private_key) -> None:
+    terminal_event = _read_jsonl(events_path)[-1]
+    seal = build_session_seal(
+        {
+            "session_id": terminal_event["session_id"],
+            "contract_id": terminal_event["contract_id"],
+            "contract_hash": terminal_event["contract_hash"],
+            "event_hash": compute_prev_hash(terminal_event),
+            "sequence_id": terminal_event["sequence_id"],
+            "timestamp": terminal_event["timestamp"],
+            "key_id": terminal_event["key_id"],
+            "algorithm": terminal_event["algorithm"],
+            "key_created_at": terminal_event["key_created_at"],
+        },
+        events_path,
+    )
+    seal["signature"] = sign_seal(seal, private_key)
+    write_seal(resolve_seal_path(session_dir), seal)
+
+
+def _assert_operational_error(result, *, expected_path: Path, expected_flag: str) -> None:
+    assert result.returncode == 2
+    assert "Verification receipt" not in result.stdout
+    assert "Traceback" not in result.stderr
+    assert str(expected_path) in result.stderr
+    assert expected_flag in result.stderr
+
+
+def test_verify_positional_succeeds_for_open_session_with_session_local_trust_inputs(
+    tmp_path: Path,
+) -> None:
+    artifacts = create_signed_session(tmp_path, include_decisions=True)
+
+    result = run_cli("verify", str(artifacts.session_dir))
+
+    assert result.returncode == 0
+    lines = _assert_receipt(result.stdout, chain_status="INTACT", seal_status="ABSENT")
+    assert (
+        _line_with_prefix(lines, "Reason: ")
+        == "Reason: session is unsealed; terminal event is tool_call, not session_close"
+    )
+    assert _line_with_prefix(lines, "Terminal: ").startswith("Terminal: seq=2 at ")
+    assert _line_with_prefix(lines, "Key: ") == f"Key: {artifacts.keypair.key_id}"
+
+
+def test_verify_positional_succeeds_for_closed_sealed_synthetic_session(
+    tmp_path: Path,
+) -> None:
+    artifacts = create_signed_session(
+        tmp_path,
+        event_specs=[
+            {
+                "event_type": "tool_call",
+                "tool_name": "filesystem.write",
+                "risk_class": "write",
+                "decision": "allow",
+                "reason": "risk_class",
+                "agent_identity": "b" * 64,
+                "input_hash": "c" * 64,
+            },
+            {
+                "event_type": "session_close",
+                "tool_name": None,
+                "risk_class": None,
+                "decision": None,
+                "reason": "session_closed",
+                "agent_identity": "b" * 64,
+                "input_hash": None,
+                "metadata": {
+                    "session_id": DEFAULT_SESSION_ID,
+                    "total_calls": 1,
+                    "chain_length": 2,
+                    "tools_invoked": ["filesystem.write"],
+                },
+            },
+        ],
+    )
+    _write_synthetic_seal(
+        artifacts.session_dir,
+        artifacts.events_path,
+        artifacts.keypair.private_key,
+    )
+
+    result = run_cli("verify", str(artifacts.session_dir))
+
+    assert result.returncode == 0
+    lines = _assert_receipt(result.stdout, chain_status="INTACT", seal_status="VALID")
+    assert _line_with_prefix(lines, "Reason: ") is None
+    assert _line_with_prefix(lines, "Terminal: ").startswith("Terminal: seq=2 at ")
+    assert _line_with_prefix(lines, "Key: ") == f"Key: {artifacts.keypair.key_id}"
+
+
+def test_verify_accepts_matching_positional_and_session_dir_flag(
+    tmp_path: Path,
+) -> None:
+    artifacts = create_signed_session(tmp_path)
+
+    result = run_cli(
+        "verify",
+        str(artifacts.session_dir),
+        "--session-dir",
+        str(artifacts.session_dir),
+    )
+
+    assert result.returncode == 0
+    _assert_receipt(result.stdout, chain_status="INTACT", seal_status="ABSENT")
+
+
+def test_verify_rejects_conflicting_session_dir_inputs(tmp_path: Path) -> None:
+    first = create_signed_session(tmp_path / "first")
+    second = create_signed_session(tmp_path / "second")
+
+    result = run_cli(
+        "verify",
+        str(first.session_dir),
+        "--session-dir",
+        str(second.session_dir),
+    )
+
+    assert result.returncode == 2
+    assert "usage: stipul verify" in result.stderr
+    assert (
+        "session_dir positional argument and --session-dir must resolve to the same path"
+        in result.stderr
+    )
+
+
+def test_verify_operational_error_when_session_local_contract_is_missing(
+    tmp_path: Path,
+) -> None:
+    artifacts = create_signed_session(tmp_path)
+    artifacts.session_contract_path.unlink()
+
+    result = run_cli("verify", str(artifacts.session_dir))
+
+    _assert_operational_error(
+        result,
+        expected_path=artifacts.session_contract_path,
+        expected_flag="--contract",
+    )
+
+
+def test_verify_operational_error_when_session_local_public_key_is_missing(
+    tmp_path: Path,
+) -> None:
+    artifacts = create_signed_session(tmp_path)
+    artifacts.session_public_key_path.unlink()
+
+    result = run_cli("verify", str(artifacts.session_dir))
+
+    _assert_operational_error(
+        result,
+        expected_path=artifacts.session_public_key_path,
+        expected_flag="--public-key",
+    )
+
+
+def test_verify_explicit_flag_invocation_supports_yaml_contract_override(
+    tmp_path: Path,
+) -> None:
+    artifacts = create_signed_session(tmp_path)
+    yaml_contract_path = _write_yaml_contract(
+        tmp_path / "contract.yaml",
+        artifacts.contract.to_canonical_dict(),
+    )
+
+    result = run_cli(
+        "verify",
+        "--session-dir",
+        str(artifacts.session_dir),
+        "--contract",
+        str(yaml_contract_path),
+        "--public-key",
+        str(artifacts.session_public_key_path),
+    )
+
+    assert result.returncode == 0
+    _assert_receipt(result.stdout, chain_status="INTACT", seal_status="ABSENT")
 
 
 def test_verify_succeeds_for_intact_chain(tmp_path: Path) -> None:
@@ -111,7 +313,6 @@ def test_verify_reports_valid_seal_for_real_allow_path_session(
         session_id=DEFAULT_SESSION_ID,
         events_path=session_dir / "events.jsonl",
     )
-    public_key_path = proxy.event_logger.signing_key.public_key_path
     key_id = proxy.event_logger.signing_key.key_id
 
     try:
@@ -130,12 +331,7 @@ def test_verify_reports_valid_seal_for_real_allow_path_session(
     report_path = tmp_path / "verify.json"
     result = run_cli(
         "verify",
-        "--session-dir",
         str(session_dir),
-        "--contract",
-        str(contract_path),
-        "--public-key",
-        str(public_key_path),
         "--json-out",
         str(report_path),
     )
@@ -166,7 +362,6 @@ def test_seal_valid_on_real_proxy_deny_path(
         events_path=session_dir / "events.jsonl",
     )
     public_key = proxy.event_logger.signing_key.public_key
-    public_key_path = proxy.event_logger.signing_key.public_key_path
     key_id = proxy.event_logger.signing_key.key_id
     called = {"count": 0}
 
@@ -203,12 +398,7 @@ def test_seal_valid_on_real_proxy_deny_path(
     report_path = tmp_path / "deny-verify.json"
     result = run_cli(
         "verify",
-        "--session-dir",
         str(session_dir),
-        "--contract",
-        str(contract_path),
-        "--public-key",
-        str(public_key_path),
         "--json-out",
         str(report_path),
     )
@@ -247,7 +437,6 @@ def test_seal_valid_on_real_proxy_approval_gate_path(
         events_path=session_dir / "events.jsonl",
     )
     public_key = proxy.event_logger.signing_key.public_key
-    public_key_path = proxy.event_logger.signing_key.public_key_path
     key_id = proxy.event_logger.signing_key.key_id
     called = {"count": 0}
 
@@ -292,12 +481,7 @@ def test_seal_valid_on_real_proxy_approval_gate_path(
     report_path = tmp_path / "approval-gate-verify.json"
     result = run_cli(
         "verify",
-        "--session-dir",
         str(session_dir),
-        "--contract",
-        str(contract_path),
-        "--public-key",
-        str(public_key_path),
         "--json-out",
         str(report_path),
     )
@@ -361,21 +545,18 @@ def test_verify_reports_invalid_seal_without_changing_chronicle_verdict(
         str(report_path),
     )
 
-    assert result.returncode == 0
+    assert result.returncode == 2
     lines = _assert_receipt(result.stdout, chain_status="INTACT", seal_status="INVALID")
     assert (
         _line_with_prefix(lines, "Reason: ")
-        == "Reason: seal terminal_sequence_id does not match authoritative events.jsonl"
+        == "Reason: seal does not match authoritative session evidence"
     )
     assert _line_with_prefix(lines, "Terminal: ").startswith("Terminal: seq=3 at ")
 
     report = json.loads(report_path.read_text(encoding="utf-8"))
     assert report["chain_status"] == "INTACT"
     assert report["seal_status"] == "INVALID"
-    assert (
-        report["seal_reason"]
-        == "seal terminal_sequence_id does not match authoritative events.jsonl"
-    )
+    assert report["seal_reason"] == "seal does not match authoritative session evidence"
 
 
 def test_r002_unsealed_session_ambiguity(tmp_path: Path, monkeypatch) -> None:
@@ -384,18 +565,11 @@ def test_r002_unsealed_session_ambiguity(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
     contract_path, _contract = write_contract_file(tmp_path)
 
-    def _run_verify(
-        session_dir: Path, public_key_path: Path, report_name: str
-    ) -> dict[str, object]:
+    def _run_verify(session_dir: Path, report_name: str) -> dict[str, object]:
         report_path = tmp_path / report_name
         result = run_cli(
             "verify",
-            "--session-dir",
             str(session_dir),
-            "--contract",
-            str(contract_path),
-            "--public-key",
-            str(public_key_path),
             "--json-out",
             str(report_path),
         )
@@ -416,9 +590,6 @@ def test_r002_unsealed_session_ambiguity(tmp_path: Path, monkeypatch) -> None:
     scenario_b_proxy: ProxyServer | None = None
 
     try:
-        scenario_a_public_key_path = (
-            scenario_a_proxy.event_logger.signing_key.public_key_path
-        )
         scenario_a_response = scenario_a_proxy.handle_tool_call(
             {
                 "tool_name": "filesystem.write",
@@ -434,7 +605,6 @@ def test_r002_unsealed_session_ambiguity(tmp_path: Path, monkeypatch) -> None:
         # close() and silently convert the "never closed" case into a sealed session.
         scenario_a_result = _run_verify(
             scenario_a_session_dir,
-            scenario_a_public_key_path,
             "scenario-a-verify.json",
         )
 
@@ -462,9 +632,6 @@ def test_r002_unsealed_session_ambiguity(tmp_path: Path, monkeypatch) -> None:
             session_id=DEFAULT_SESSION_ID,
             events_path=tmp_path / "scenario-b" / "events.jsonl",
         )
-        scenario_b_public_key_path = (
-            scenario_b_proxy.event_logger.signing_key.public_key_path
-        )
         scenario_b_response = scenario_b_proxy.handle_tool_call(
             {
                 "tool_name": "filesystem.write",
@@ -481,7 +648,6 @@ def test_r002_unsealed_session_ambiguity(tmp_path: Path, monkeypatch) -> None:
         scenario_b_seal_path.unlink()
         scenario_b_result = _run_verify(
             scenario_b_session_dir,
-            scenario_b_public_key_path,
             "scenario-b-verify.json",
         )
 

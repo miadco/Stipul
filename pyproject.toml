@@ -40,6 +40,10 @@ version = {attr = "stipul.__version__"}
 include = ["stipul*"]
 namespaces = false
 
+[tool.setuptools.package-data]
+"stipul.demo" = ["demo_charter.yaml"]
+"stipul.templates" = ["starter.yaml"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

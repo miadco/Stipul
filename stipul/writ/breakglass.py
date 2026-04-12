@@ -145,7 +145,8 @@ class BreakGlassManager:
                 continue
             if event.scope == "specific_tools" and item.tool_name not in event.specific_tools:
                 continue
-            tools_used[item.tool_name] = tools_used.get(item.tool_name, 0) + 1
+            tool_name = cast(str, item.tool_name)
+            tools_used[tool_name] = tools_used.get(tool_name, 0) + 1
             total += 1
 
         return {

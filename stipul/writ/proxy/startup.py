@@ -7,15 +7,20 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Mapping, cast
 
 _TOKEN_SECRET_MARKER = "TOKEN_SECRET"  # nosec B105
 _FATAL_SECRET_MESSAGE = (
     "FATAL: Token secret detected in agent environment. "
     "Secret isolation violated. Resolve before starting proxy."
 )  # nosec B105
+_ISOLATION_SKIPPED_INFO = (
+    "Token secret isolation was not verified in this attach mode because "
+    "no inspectable agent environment target was provided."
+)
 _ISOLATION_UNVERIFIED_WARNING = (
-    "Token secret isolation could not be verified. "
+    "Token secret isolation could not be verified because the agent "
+    "environment could not be inspected. "
     "Ensure STIPUL_TOKEN_SECRET is not accessible to the agent process."
 )
 
@@ -63,16 +68,39 @@ def _inspect_agent_environment(
     agent_env: Mapping[str, str] | None,
     inspect_current_process: bool,
 ) -> tuple[Mapping[str, str] | None, str]:
+    source = _inspection_source(
+        agent_pid=agent_pid,
+        agent_env=agent_env,
+        inspect_current_process=inspect_current_process,
+    )
+    if source == "agent_env":
+        return dict(agent_env or {}), source
+
+    if source == "proc":
+        return _read_linux_proc_environ(cast(int, agent_pid)), source
+
+    if source == "current_process":
+        return dict(os.environ), source
+
+    return None, source
+
+
+def _inspection_source(
+    *,
+    agent_pid: int | None,
+    agent_env: Mapping[str, str] | None,
+    inspect_current_process: bool,
+) -> str:
     if agent_env is not None:
-        return dict(agent_env), "agent_env"
+        return "agent_env"
 
     if agent_pid is not None and sys.platform.startswith("linux"):
-        return _read_linux_proc_environ(agent_pid), "proc"
+        return "proc"
 
     if inspect_current_process:
-        return dict(os.environ), "current_process"
+        return "current_process"
 
-    return None, "unavailable"
+    return "no_target"
 
 
 def check_secret_isolation(
@@ -89,6 +117,11 @@ def check_secret_isolation(
         SecretIsolationError: when token secret markers are detected in agent env.
     """
     active_logger = logger or logging.getLogger(__name__)
+    inspection_source = _inspection_source(
+        agent_pid=agent_pid,
+        agent_env=agent_env,
+        inspect_current_process=inspect_current_process,
+    )
 
     try:
         environment, source = _inspect_agent_environment(
@@ -101,12 +134,12 @@ def check_secret_isolation(
         return SecretIsolationResult(
             verified=False,
             check_performed=False,
-            source="unavailable",
+            source=inspection_source,
             detected_keys=(),
         )
 
     if environment is None:
-        active_logger.warning(_ISOLATION_UNVERIFIED_WARNING)
+        active_logger.info(_ISOLATION_SKIPPED_INFO)
         return SecretIsolationResult(
             verified=False,
             check_performed=False,

@@ -124,6 +124,7 @@ def test_invalid_operator_state_denies_without_execution(
     assert called["count"] == 0
 
     events = _read_events(events_path)
-    assert len(events) == 1
-    assert events[0]["decision"] == "deny"
-    assert events[0]["reason"] == "proxy_degraded"
+    assert len(events) == 2
+    assert events[0]["event_type"] == "session_open"
+    assert events[1]["decision"] == "deny"
+    assert events[1]["reason"] == "proxy_degraded"

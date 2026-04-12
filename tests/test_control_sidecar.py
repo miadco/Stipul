@@ -171,12 +171,13 @@ def test_control_sidecar_serves_status_and_toggle_endpoints(tmp_path: Path, cont
         assert disabled["operator_reason"] == "operator_kill_switch_disabled"
 
         events = _read_events(events_path)
-        assert [(event["event_type"], event["decision"], event["reason"]) for event in events] == [
+        assert events[0]["event_type"] == "session_open"
+        assert [(event["event_type"], event["decision"], event["reason"]) for event in events[1:]] == [
             ("elev_op", "allow", "operator_kill_switch_enabled"),
             ("elev_op", "allow", "operator_kill_switch_disabled"),
         ]
-        assert events[0]["metadata"]["updated_by"] == "operator@example.com"
         assert events[1]["metadata"]["updated_by"] == "operator@example.com"
+        assert events[2]["metadata"]["updated_by"] == "operator@example.com"
     finally:
         proxy.close()
 

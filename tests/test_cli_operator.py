@@ -77,10 +77,16 @@ def test_operator_cli_enable_status_and_disable(tmp_path: Path) -> None:
     assert operator_state["updated_by"] == "operator@example.com"
 
     events = _read_jsonl(artifacts.events_path)
-    assert events[-1]["event_type"] == "elev_op"
-    assert events[-1]["decision"] == "allow"
-    assert events[-1]["reason"] == "operator_kill_switch_enabled"
-    assert events[-1]["metadata"]["updated_by"] == "operator@example.com"
+    enable_event = next(
+        event
+        for event in reversed(events)
+        if event["event_type"] == "elev_op"
+        and event["reason"] == "operator_kill_switch_enabled"
+    )
+    assert enable_event["decision"] == "allow"
+    assert enable_event["metadata"]["updated_by"] == "operator@example.com"
+    assert events[-1]["event_type"] == "session_close"
+    assert events[-1]["reason"] == "session_closed"
 
     refreshed_status = _run_cli(
         tmp_path,
@@ -117,10 +123,20 @@ def test_operator_cli_enable_status_and_disable(tmp_path: Path) -> None:
     assert "operator_reason: operator_kill_switch_disabled" in disable_result.stdout
 
     final_events = _read_jsonl(artifacts.events_path)
-    assert [event["reason"] for event in final_events[-2:]] == [
+    disable_event = next(
+        event
+        for event in reversed(final_events)
+        if event["event_type"] == "elev_op"
+        and event["reason"] == "operator_kill_switch_disabled"
+    )
+    assert disable_event["decision"] == "allow"
+    assert disable_event["metadata"]["updated_by"] == "operator@example.com"
+    assert [event["reason"] for event in final_events if event["event_type"] == "elev_op"] == [
         "operator_kill_switch_enabled",
         "operator_kill_switch_disabled",
     ]
+    assert final_events[-1]["event_type"] == "session_close"
+    assert final_events[-1]["reason"] == "session_closed"
 
 
 def test_operator_cli_approval_commands_delegate_to_proxy_methods(

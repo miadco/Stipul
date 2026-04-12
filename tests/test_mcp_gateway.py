@@ -60,6 +60,12 @@ def _read_events(path: Path) -> list[dict[str, object]]:
     ]
 
 
+def _assert_session_open(event: dict[str, object], contract: Contract) -> None:
+    assert event["event_type"] == "session_open"
+    assert event["reason"] == "session_started"
+    assert event["prev_hash"] == compute_contract_hash(contract)
+
+
 def test_mcp_gateway_initialize_and_tools_list_use_caller_catalog(
     tmp_path: Path,
     contract: Contract,
@@ -153,17 +159,18 @@ def test_mcp_gateway_tools_call_allow_flows_through_proxy_and_logs_authoritative
         assert request["metadata"] == {"ingress": "mcp_gateway"}
 
         events = _read_events(events_path)
-        assert len(events) == 1
-        assert events[0]["event_type"] == "tool_call"
-        assert events[0]["decision"] == "allow"
-        assert events[0]["reason"] == "risk_class"
-        assert events[0]["metadata"]["ingress"] == "mcp_gateway"
+        assert len(events) == 2
+        _assert_session_open(events[0], contract)
+        assert events[1]["event_type"] == "tool_call"
+        assert events[1]["decision"] == "allow"
+        assert events[1]["reason"] == "risk_class"
+        assert events[1]["metadata"]["ingress"] == "mcp_gateway"
         attestation = proxy.event_logger.last_attestation
         assert attestation is not None
         assert attestation["kind"] == "chronicle_attestation"
-        assert attestation["sequence_id"] == events[0]["sequence_id"]
-        assert attestation["event_hash"] == compute_prev_hash(events[0])
-        assert attestation["signature"] == events[0]["signature"]
+        assert attestation["sequence_id"] == events[1]["sequence_id"]
+        assert attestation["event_hash"] == compute_prev_hash(events[1])
+        assert attestation["signature"] == events[1]["signature"]
         assert not (events_path.parent / "wrapper_log.jsonl").exists()
     finally:
         proxy.close()
@@ -205,11 +212,12 @@ def test_mcp_gateway_tools_call_deny_returns_structured_proxy_denial_and_logs_ev
         assert called["count"] == 0
 
         events = _read_events(events_path)
-        assert len(events) == 1
-        assert events[0]["event_type"] == "tool_call"
-        assert events[0]["decision"] == "deny"
-        assert events[0]["reason"] == "not_in_contract"
-        assert events[0]["metadata"]["ingress"] == "mcp_gateway"
+        assert len(events) == 2
+        _assert_session_open(events[0], contract)
+        assert events[1]["event_type"] == "tool_call"
+        assert events[1]["decision"] == "deny"
+        assert events[1]["reason"] == "not_in_contract"
+        assert events[1]["metadata"]["ingress"] == "mcp_gateway"
         assert not (events_path.parent / "wrapper_log.jsonl").exists()
     finally:
         proxy.close()
@@ -256,7 +264,8 @@ def test_mcp_gateway_kill_switch_denies_before_execution_and_logs_gateway_metada
         assert called["count"] == 0
 
         events = _read_events(events_path)
-        assert [(event["event_type"], event["decision"], event["reason"]) for event in events] == [
+        assert events[0]["event_type"] == "session_open"
+        assert [(event["event_type"], event["decision"], event["reason"]) for event in events[1:]] == [
             ("elev_op", "allow", "operator_kill_switch_enabled"),
             ("tool_call", "deny", "kill_switch_active"),
         ]

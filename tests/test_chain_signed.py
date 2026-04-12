@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -10,7 +11,7 @@ import pytest
 
 from stipul.charter.contract.schema import Contract
 from stipul.charter.contract.utils import compute_contract_hash
-from stipul.chronicle.events.logger import EventLogger
+from stipul.chronicle.events.logger import EventLogger, compute_event_hash
 from stipul.chronicle.events.store import EventStore
 from stipul.chronicle.signing.keys import generate_keypair
 from stipul.chronicle.signing.signer import sign_event
@@ -35,6 +36,10 @@ def _write_jsonl(path: Path, entries: list[dict[str, Any] | str]) -> None:
         else:
             lines.append(canonical_json_bytes(entry).decode("utf-8"))
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _tool_input_hash(inputs: dict[str, Any]) -> str:
+    return hashlib.sha256(canonical_json_bytes(inputs)).hexdigest()
 
 
 def _make_signed_event(
@@ -93,6 +98,34 @@ def _failure_kinds(result) -> list[str]:
     return [failure.kind for failure in result.failures]
 
 
+def _assert_session_open(event: dict[str, Any], contract: Contract) -> None:
+    assert event["event_type"] == "session_open"
+    assert event["reason"] == "session_started"
+    assert event["sequence_id"] == 1
+    assert event["prev_hash"] == compute_contract_hash(contract)
+    assert event["tool_name"] is None
+    assert event["decision"] is None
+    assert event["risk_class"] is None
+    assert event["tool_input"] is None
+
+
+def _assert_session_close(event: dict[str, Any], previous_event: dict[str, Any]) -> None:
+    assert event["event_type"] == "session_close"
+    assert event["reason"] == "session_closed"
+    assert event["tool_name"] is None
+    assert event["decision"] is None
+    assert event["risk_class"] is None
+    assert event["tool_input"] is None
+    assert event["rule_triggered"] is None
+    assert event["lifecycle_hash"] is None
+    assert event["input_hash"] is None
+    assert event["prev_hash"] == compute_prev_hash(previous_event)
+    assert event["event_hash"] == compute_event_hash(event)
+    metadata = event["metadata"]
+    assert "chain_integrity" not in metadata
+    assert metadata["pre_close_chain_integrity"] == "intact"
+
+
 @pytest.mark.signed_chain
 def test_verify_chain_accepts_real_proxy_allow_path(tmp_path: Path, contract, monkeypatch) -> None:
     monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
@@ -119,18 +152,34 @@ def test_verify_chain_accepts_real_proxy_allow_path(tmp_path: Path, contract, mo
             lambda _request: {"ok": True},
         )
         assert response == {"ok": True}
+        proxy.close()
 
         attestation = proxy.event_logger.last_attestation
         assert attestation is not None
-        persisted = json.loads(events_path.read_text(encoding="utf-8").splitlines()[0])
+        persisted_events = [
+            json.loads(line)
+            for line in events_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        assert len(persisted_events) == 3
+        _assert_session_open(persisted_events[0], contract)
+        persisted = persisted_events[1]
+        session_close = persisted_events[2]
         assert attestation["kind"] == "chronicle_attestation"
-        assert attestation["event_hash"] == compute_prev_hash(persisted)
-        assert attestation["signature"] == persisted["signature"]
-        assert attestation["decision"] == "allow"
+        assert attestation["event_hash"] == compute_prev_hash(session_close)
+        assert attestation["signature"] == session_close["signature"]
+        assert attestation["decision"] is None
+        assert attestation["event_type"] == "session_close"
+        assert persisted["rule_triggered"] == "risk_class"
+        assert persisted["lifecycle_hash"] is None
+        assert persisted["prev_hash"] == compute_prev_hash(persisted_events[0])
+        assert persisted["event_hash"] == compute_event_hash(persisted)
+        assert persisted["tool_input"] == {"path": "out.txt", "content": "x"}
+        _assert_session_close(session_close, persisted)
 
         result = verify_chain(events_path, keypair.public_key, contract)
         assert result.status == "INTACT"
-        assert result.signed_event_count == 1
+        assert result.signed_event_count == 3
         assert result.failures == []
     finally:
         proxy.close()
@@ -165,23 +214,37 @@ def test_verify_chain_accepts_real_proxy_deny_path(tmp_path: Path, contract) -> 
             "reason": "not_in_contract",
             "tool_name": "totally.unknown.tool",
         }
+        proxy.close()
 
         attestation = proxy.event_logger.last_attestation
         assert attestation is not None
-        persisted = json.loads(events_path.read_text(encoding="utf-8").splitlines()[0])
+        persisted_events = [
+            json.loads(line)
+            for line in events_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        assert len(persisted_events) == 3
+        _assert_session_open(persisted_events[0], contract)
+        persisted = persisted_events[1]
+        session_close = persisted_events[2]
         assert persisted["event_type"] == "tool_call"
         assert persisted["decision"] == "deny"
         assert persisted["reason"] == "not_in_contract"
         assert persisted["tool_name"] == "totally.unknown.tool"
-        assert persisted["prev_hash"] == compute_contract_hash(contract)
+        assert persisted["rule_triggered"] == "not_allowed"
+        assert persisted["lifecycle_hash"] is None
+        assert persisted["prev_hash"] == compute_prev_hash(persisted_events[0])
+        assert persisted["event_hash"] == compute_event_hash(persisted)
         assert attestation["kind"] == "chronicle_attestation"
-        assert attestation["event_hash"] == compute_prev_hash(persisted)
-        assert attestation["signature"] == persisted["signature"]
-        assert attestation["decision"] == "deny"
+        assert attestation["event_hash"] == compute_prev_hash(session_close)
+        assert attestation["signature"] == session_close["signature"]
+        assert attestation["decision"] is None
+        assert attestation["event_type"] == "session_close"
+        _assert_session_close(session_close, persisted)
 
         result = verify_chain(events_path, keypair.public_key, contract)
         assert result.status == "INTACT"
-        assert result.signed_event_count == 1
+        assert result.signed_event_count == 3
         assert result.failures == []
     finally:
         proxy.close()
@@ -224,6 +287,7 @@ def test_verify_chain_accepts_real_proxy_approval_gate_path(
             "reason": "approval_required",
             "tool_name": "dangerous.op",
         }
+        proxy.close()
 
         attestation = proxy.event_logger.last_attestation
         assert attestation is not None
@@ -232,36 +296,54 @@ def test_verify_chain_accepts_real_proxy_approval_gate_path(
             for line in events_path.read_text(encoding="utf-8").splitlines()
             if line.strip()
         ]
-        assert len(persisted) == 2
-        approval_created, approval_denied = persisted
+        assert len(persisted) == 4
+        _assert_session_open(persisted[0], contract)
+        approval_created, approval_denied, session_close = persisted[1:]
+        expected_input_hash = _tool_input_hash({"path": "out.txt"})
 
         assert approval_created["event_type"] == "elev_op"
         assert approval_created["decision"] == "allow"
         assert approval_created["reason"] == "approval_request_created"
         assert approval_created["tool_name"] == "dangerous.op"
-        assert approval_created["prev_hash"] == compute_contract_hash(contract)
+        assert approval_created["risk_class"] == "irreversible"
+        assert approval_created["input_hash"] == expected_input_hash
+        assert approval_created["lifecycle_hash"] != expected_input_hash
+        assert approval_created["prev_hash"] == compute_prev_hash(persisted[0])
+        assert approval_created["tool_input"] is None
+        assert approval_created["event_hash"] == compute_event_hash(approval_created)
 
         assert approval_denied["event_type"] == "tool_call"
         assert approval_denied["decision"] == "deny"
         assert approval_denied["reason"] == "approval_required"
         assert approval_denied["tool_name"] == "dangerous.op"
+        assert approval_denied["rule_triggered"] == "risk_class"
+        assert approval_denied["input_hash"] == expected_input_hash
+        assert approval_denied["tool_input"] == {"path": "out.txt"}
+        assert approval_denied["lifecycle_hash"] is None
         assert approval_denied["prev_hash"] == compute_prev_hash(approval_created)
+        assert approval_denied["event_hash"] == compute_event_hash(approval_denied)
 
         created_context = approval_created["metadata"]["approval_context"]
         denied_context = approval_denied["metadata"]["approval_context"]
         assert created_context["request_id"] == denied_context["request_id"]
         assert created_context["status"] == "pending"
         assert denied_context["status"] == "pending"
+        assert created_context["input_hash"] == expected_input_hash
 
         assert attestation["kind"] == "chronicle_attestation"
-        assert attestation["event_hash"] == compute_prev_hash(approval_denied)
-        assert attestation["signature"] == approval_denied["signature"]
-        assert attestation["decision"] == "deny"
-        assert attestation["reason"] == "approval_required"
+        assert attestation["event_hash"] == compute_prev_hash(session_close)
+        assert attestation["signature"] == session_close["signature"]
+        assert attestation["decision"] is None
+        assert attestation["event_type"] == "session_close"
+        assert attestation["reason"] == "session_closed"
+        assert session_close["metadata"]["total_approval_required"] == 1
+        assert session_close["metadata"]["total_denied"] == 1
+        assert session_close["metadata"]["total_calls"] == 1
+        _assert_session_close(session_close, approval_denied)
 
         result = verify_chain(events_path, keypair.public_key, contract)
         assert result.status == "INTACT"
-        assert result.signed_event_count == 2
+        assert result.signed_event_count == 4
         assert result.failures == []
     finally:
         proxy.close()

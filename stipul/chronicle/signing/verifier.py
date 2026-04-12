@@ -104,7 +104,7 @@ def _load_lines(events_path: Path) -> list[str]:
 def _project_decisions(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     projected: list[dict[str, Any]] = []
     for event in events:
-        if "decision" not in event:
+        if event.get("decision") is None:
             continue
         projected.append(
             {

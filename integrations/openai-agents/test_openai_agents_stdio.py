@@ -63,11 +63,14 @@ def test_allowed_safe_read_returns_stable_output_and_writes_evidence(tmp_path: P
     asyncio.run(scenario())
 
     events = read_events(session_dir / "events.jsonl")
-    assert [(event["event_type"], event["decision"], event["reason"]) for event in events] == [
+    decision_events = [event for event in events if event["decision"] is not None]
+    assert [
+        (event["event_type"], event["decision"], event["reason"]) for event in decision_events
+    ] == [
         ("tool_call", "allow", "risk_class"),
     ]
-    assert events[0]["tool_name"] == "filesystem.read"
-    assert events[0]["metadata"] == {"ingress": "mcp_gateway"}
+    assert decision_events[0]["tool_name"] == "filesystem.read"
+    assert decision_events[0]["metadata"] == {"ingress": "mcp_gateway"}
     if _demo_enabled():
         print("## Scenario 1: allowed safe read")
         print(
@@ -157,17 +160,18 @@ def test_denied_and_kill_switch_paths_are_structured_and_logged(tmp_path: Path) 
     assert target_path.read_text(encoding="utf-8") == "sensitive\n"
 
     events = read_events(session_dir / "events.jsonl")
-    assert [(event["tool_name"], event["decision"], event["reason"]) for event in events] == [
+    decision_events = [event for event in events if event["decision"] is not None]
+    assert [(event["tool_name"], event["decision"], event["reason"]) for event in decision_events] == [
         ("filesystem.write", "deny", "not_in_contract"),
         ("filesystem.delete", "allow", "approval_request_created"),
         ("filesystem.delete", "deny", "approval_required"),
         ("unknown.tool", "deny", "not_in_contract"),
         ("filesystem.read", "deny", "kill_switch_active"),
     ]
-    assert events[0]["metadata"] == {"ingress": "mcp_gateway"}
-    assert "approval_context" in events[1]["metadata"]
-    assert events[2]["metadata"]["ingress"] == "mcp_gateway"
-    assert events[4]["metadata"]["operator_updated_by"] == "operator@example.com"
+    assert decision_events[0]["metadata"] == {"ingress": "mcp_gateway"}
+    assert "approval_context" in decision_events[1]["metadata"]
+    assert decision_events[2]["metadata"]["ingress"] == "mcp_gateway"
+    assert decision_events[4]["metadata"]["operator_updated_by"] == "operator@example.com"
     assert json.loads((session_dir / "operator_state.json").read_text(encoding="utf-8"))[
         "kill_switch_active"
     ] is True

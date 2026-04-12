@@ -4,11 +4,11 @@
 
 ## What This Integration Is
 
-This is the second Stipul integration, proving the LangGraph-side MCP client path over stdio.
+This integration covers the LangGraph-side MCP client path over stdio.
 
-It proves the narrow boundary where LangGraph-compatible MCP tool activity goes through Writ, Writ enforces the Charter, Chronicle records the decision in `events.jsonl`, and Seal verification still works on the resulting evidence.
+It proves the narrow boundary where LangGraph-compatible MCP tool activity goes through Writ. Writ enforces the Charter, records every decision in the Chronicle, and produces a cryptographic Seal.
 
-This proves mediation for the direct `MultiServerMCPClient` tool-loading path used in a LangGraph integration path only. It does not claim full LangGraph graph execution with a live model.
+This proves mediation for the direct `MultiServerMCPClient` tool-loading path only. It does not claim full LangGraph graph execution with a live model.
 
 ## Attach Point
 
@@ -17,7 +17,7 @@ This proves mediation for the direct `MultiServerMCPClient` tool-loading path us
 - Existing MCP gateway hook: `ProxyServer.create_mcp_gateway(...)`
 - Existing shipped transport path: `stipul/cli/gateway_cmd.py -> stipul/writ/proxy/mcp_gateway.py`
 
-This integration does not add a second enforcement path, a second evidence path, or a second ledger.
+This integration does not add a second enforcement path or a second evidence path.
 
 ## SDK Inspection Evidence
 
@@ -84,7 +84,7 @@ Design conclusion:
 - The correct stdio config shape is a `TypedDict` with `transport`, `command`, `args`, and optional `env` and `cwd`.
 - Stipul's shipped gateway surface is stdio-only, so this integration uses `StdioConnection` to launch the existing Stipul stdio MCP gateway.
 - `tool_interceptors` is not used for enforcement. Writ remains the enforcement boundary.
-- `create_react_agent` imports successfully but is not used for proof here, because this first LangGraph pass avoids adding a live model dependency.
+- `create_react_agent` imports successfully but is not used for proof here, because this proof path avoids adding a live model dependency.
 
 ## Design Decision
 
@@ -112,21 +112,15 @@ Run the real demo and regenerate the transcript:
 bash -lc 'bash integrations/langgraph/demo.sh' 2>&1 | tee integrations/langgraph/demo.transcript.txt
 ```
 
-Human reviewer ritual:
-
-```text
-integrations/langgraph/TEST_PLAN.md
-```
-
 The demo creates fresh artifacts under:
 
 ```text
 /tmp/stipul-langgraph-demo/
 ```
 
-This is a source-checkout-only demo path. It reuses the focused integration test nodes to exercise the real LangGraph MCP client boundary and then runs `stipul verify` over the resulting evidence.
+This is a source-checkout-only demo path. It reuses the focused integration test scenarios to exercise the real LangGraph MCP client boundary and then runs `stipul verify` over the resulting evidence.
 
-Run from repo root: `bash integrations/langgraph/demo.sh`. See `integrations/langgraph/TEST_PLAN.md` for the supported reviewer path.
+Run from repo root: `bash integrations/langgraph/demo.sh`.
 
 ## Demo Output
 
@@ -134,7 +128,7 @@ During source-checkout demo runs, you may see `Token secret isolation could not 
 
 This is expected in the local demo layout because the gateway is launched from the same source checkout and process tree as the calling integration client, so startup cannot verify the production isolation boundary.
 
-In production, the gateway and agent run in separate process trees, so token secret isolation is verifiable.
+In a separated production deployment, startup can verify token secret isolation.
 
 This warning does not change enforcement decisions, Chronicle evidence writes, or `stipul verify` results.
 
@@ -148,7 +142,7 @@ Run the focused integration test file:
 .venv/bin/python -m pytest integrations/langgraph/test_langgraph_stdio.py
 ```
 
-Optional targeted checks used for this work:
+Optional targeted checks:
 
 ```bash
 .venv/bin/python -m ruff check integrations/langgraph
@@ -176,7 +170,6 @@ Optional targeted checks used for this work:
 - This does not yet prove SSE or HTTP transport support on the Stipul side.
 - `create_react_agent` was inspected but is not exercised in this proof path.
 - The runtime factory in this directory is intentionally small and deterministic. It is not a general runtime framework.
-- OL-008 — run from repo root: `bash integrations/langgraph/demo.sh`.
 
 ## Proven
 
@@ -186,7 +179,6 @@ Optional targeted checks used for this work:
 - Chronicle evidence is written to authoritative `events.jsonl`.
 - Seal verification still succeeds for intact demo evidence and fails after tampering.
 - The integration does not use `tool_interceptors` for enforcement.
-- The integration was implemented without touching files outside `integrations/langgraph/`.
 
 ## Not Yet Proven
 

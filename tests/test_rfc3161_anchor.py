@@ -131,6 +131,28 @@ def test_timestamp_export_bundle_refuses_redacted_bundles(tmp_path: Path) -> Non
         timestamp_export_bundle_rfc3161(bundle_dir, "https://tsa.example")
 
 
+def test_timestamp_export_bundle_rejects_non_http_tsa_url_before_network(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    artifacts = create_signed_session(tmp_path, include_decisions=True, include_summary=True)
+    bundle_dir = tmp_path / "bundle"
+    export_session_bundle(
+        artifacts.session_dir,
+        bundle_dir,
+        contract=artifacts.contract,
+        public_key_path=artifacts.keypair.public_key_path,
+    )
+
+    monkeypatch.setattr(
+        "stipul.seal.rfc3161_anchor._post_timestamp_request",
+        lambda *args, **kwargs: pytest.fail("network helper should not be called for invalid TSA URLs"),
+    )
+
+    with pytest.raises(ValueError, match="TSA URL must use http or https"):
+        timestamp_export_bundle_rfc3161(bundle_dir, "file:///tmp/tsa")
+
+
 def test_timestamp_export_bundle_rejects_non_granted_response(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

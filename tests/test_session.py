@@ -95,7 +95,10 @@ def test_session_open_renames_prior_session_file(tmp_path: Path, base_dict, monk
 
     assert (tmp_path / f"events_{_OTHER_SESSION_ID}.jsonl").exists()
     if events_path.exists():
-        assert _read_events(events_path) == []
+        events = _read_events(events_path)
+        assert len(events) == 2
+        assert events[0]["event_type"] == "session_open"
+        assert events[1]["event_type"] == "session_close"
 
 
 def test_session_lock_conflict_raises_error(tmp_path: Path) -> None:
@@ -255,8 +258,10 @@ def test_prev_unsigned_terminal_hash_absent_when_unsigned_was_in_renamed_file(
         proxy.close()
 
     current_events = _read_events(events_path)
-    assert len(current_events) == 1
+    assert len(current_events) == 3
+    assert current_events[0]["event_type"] == "session_open"
     assert "prev_unsigned_terminal_hash" not in current_events[0]
+    assert current_events[-1]["event_type"] == "session_close"
     assert (tmp_path / f"events_{_OTHER_SESSION_ID}.jsonl").exists()
 
 
@@ -306,7 +311,9 @@ def test_genesis_includes_prev_chain_fields_when_prior_signed_session_is_renamed
         proxy.close()
 
     current_events = _read_events(events_path)
-    assert len(current_events) == 1
+    assert len(current_events) == 3
     genesis = current_events[0]
+    assert genesis["event_type"] == "session_open"
     assert genesis["prev_session_id"] == _OTHER_SESSION_ID
     assert genesis["prev_chain_terminal_hash"] == expected_terminal_hash
+    assert current_events[-1]["event_type"] == "session_close"

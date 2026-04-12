@@ -5,8 +5,9 @@ from __future__ import annotations
 import base64
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 from asn1crypto import cms, parser, tsp
@@ -32,12 +33,13 @@ def timestamp_export_bundle_rfc3161(
     manifest_path = resolved_bundle_dir / "manifest.json"
     manifest = _load_manifest(manifest_path)
     _ensure_non_redacted_bundle(resolved_bundle_dir, manifest)
+    validated_tsa_url = _validate_tsa_url(tsa_url)
 
     top_level_sha256 = _load_top_level_sha256(manifest, manifest_path)
     message_imprint = bytes.fromhex(top_level_sha256)
     request_der = _build_timestamp_request(message_imprint)
     receipt_content_type, response_der = _post_timestamp_request(
-        tsa_url,
+        validated_tsa_url,
         request_der,
         timeout_seconds=timeout_seconds,
     )
@@ -46,7 +48,7 @@ def timestamp_export_bundle_rfc3161(
         expected_message_imprint=message_imprint,
     )
     receipt = {
-        "tsa_url": tsa_url,
+        "tsa_url": validated_tsa_url,
         "manifest_path": str(manifest_path.resolve()),
         "anchored_top_level_sha256": top_level_sha256,
         "message_imprint_algorithm": "sha256",
@@ -103,7 +105,14 @@ def _build_timestamp_request(message_imprint: bytes) -> bytes:
             "cert_req": True,
         }
     )
-    return request.dump()
+    return cast(bytes, request.dump())
+
+
+def _validate_tsa_url(tsa_url: str) -> str:
+    parsed = urlsplit(tsa_url)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError(f"TSA URL must use http or https: {tsa_url}")
+    return tsa_url
 
 
 def _post_timestamp_request(
@@ -122,7 +131,7 @@ def _post_timestamp_request(
         method="POST",
     )
     try:
-        with urlopen(request, timeout=timeout_seconds) as response:
+        with urlopen(request, timeout=timeout_seconds) as response:  # nosec B310
             content_type = _normalize_content_type(response.headers.get("Content-Type"))
             return content_type, response.read()
     except HTTPError as exc:
@@ -200,7 +209,7 @@ def _extract_tst_info(encap_content_info: cms.ContentInfo) -> dict[str, Any]:
     if not tst_info_der:
         raise ValueError("Malformed RFC 3161 response: missing TSTInfo payload")
     try:
-        return tsp.TSTInfo.load(tst_info_der).native
+        return cast(dict[str, Any], tsp.TSTInfo.load(tst_info_der).native)
     except Exception as exc:
         raise ValueError(f"Malformed RFC 3161 response: invalid TSTInfo payload: {exc}") from exc
 

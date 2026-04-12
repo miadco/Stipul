@@ -3,6 +3,9 @@
 For the canonical first-run gateway path, start with [README.md](/home/michael/Downloads/stipul/README.md).
 This runbook is the deeper source-checkout-oriented proof/demo path.
 
+For the packaged screenshot demo, use `stipul demo proof`.
+That command ships its own Charter, prints the trust receipt directly, and guides the `seal.json` tamper step.
+
 This is still a source-checkout demo, not a clean-install operator workflow.
 
 It intentionally uses repo-local assets because the current repo does not ship a smaller packaged demo path:

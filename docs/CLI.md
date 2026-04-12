@@ -3,7 +3,7 @@
 > Start with the [root README](../README.md) for the native demo and supported-path overview. This document is the command reference.
 
 Examples in this document use `stipul ...`.
-In a source checkout, the equivalent entry point is `.venv/bin/python -m stipul.cli.main ...`.
+In a source checkout, the equivalent entry point is `python -m stipul.cli.main ...` from the interpreter where Stipul is installed.
 Use whichever form matches the current environment.
 
 ## Commands
@@ -140,20 +140,45 @@ Exit codes:
 
 ### `stipul verify`
 
-Verify the signed authoritative `events.jsonl` chain.
+Verify the signed authoritative `events.jsonl` chain and the session Seal.
 
 ```bash
-stipul verify \
-  --session-dir /path/to/session \
-  --contract charter.yaml \
-  --public-key /path/to/runtime_key.pub
+stipul verify /path/to/session
 ```
+
+If the session directory contains session-local `contract.json` and `public_key.pem`, `stipul verify` auto-discovers them. Use `--contract` and `--public-key` to override those trust inputs explicitly.
+
+The receipt begins with a `Trust:` line:
+
+- `Trust: VERIFIED` when `Chain: INTACT` and `Seal: VALID`
+- `Trust: UNVERIFIED (unsealed)` when `Chain: INTACT` and `Seal: ABSENT`
+- `Trust: REJECTED` for all other chain and seal combinations
 
 Exit codes:
 
-- `0`: chain status `INTACT`
-- `2`: chain `BROKEN` or `UNVERIFIABLE`
+- `0`: trust `VERIFIED` or `UNVERIFIED (unsealed)`
+- `2`: trust `REJECTED`
 - `3`: fatal input or parsing error
+
+### `stipul demo proof`
+
+Run the packaged proof demo.
+
+```bash
+stipul demo proof
+```
+
+The command creates a fresh temporary session, runs one allowed action and two denied actions through the existing proxy, closes and seals the session, self-verifies it, and prints:
+
+- a replay card derived from authoritative `events.jsonl`
+- a trust receipt
+- a guided `seal.json` tamper challenge
+
+Exit codes:
+
+- `0`: demo completed and self-verified
+- `2`: demo session failed self-verification
+- `3`: fatal input or runtime error
 
 ### `stipul export`
 

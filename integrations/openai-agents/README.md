@@ -4,9 +4,9 @@
 
 ## What This Integration Is
 
-This is the first Stipul integration for the OpenAI Agents SDK using MCP-native stdio.
+This integration covers the OpenAI Agents SDK MCP client path over stdio.
 
-It proves the narrow boundary where OpenAI Agents SDK MCP tool calls go through Writ, Writ enforces the Charter, Chronicle records the decision in `events.jsonl`, and Seal verification still works on the resulting evidence.
+It proves the narrow boundary where OpenAI Agents SDK MCP tool calls go through Writ. Writ enforces the Charter, records every decision in the Chronicle, and produces a cryptographic Seal.
 
 ## Attach Point
 
@@ -15,7 +15,7 @@ It proves the narrow boundary where OpenAI Agents SDK MCP tool calls go through 
 - Existing MCP gateway hook: `ProxyServer.create_mcp_gateway(...)`
 - Existing shipped transport path: `stipul/cli/gateway_cmd.py -> stipul/writ/proxy/mcp_gateway.py`
 
-This integration does not add a second enforcement path, a second evidence path, or a second ledger.
+This integration does not add a second enforcement path or a second evidence path.
 
 ## SDK Inspection Evidence
 
@@ -33,7 +33,7 @@ Observed results from this repo environment:
 ```text
 Name: openai-agents
 Version: 0.12.0
-Location: /home/michael/Downloads/stipul/.venv/lib/python3.12/site-packages
+Location: <project-venv>/lib/python3.12/site-packages
 ```
 
 ```text
@@ -41,7 +41,7 @@ ImportError: cannot import name 'MCPServerStdio' from 'agents'
 ```
 
 ```text
-agents.__file__ -> /home/michael/Downloads/stipul/.venv/lib/python3.12/site-packages/agents/__init__.py
+agents.__file__ -> <project-venv>/lib/python3.12/site-packages/agents/__init__.py
 dir(agents) includes HostedMCPTool and the agents.mcp submodule, but not top-level MCPServerStdio.
 ```
 
@@ -89,21 +89,15 @@ Run the real demo and regenerate the transcript:
 bash -lc 'bash integrations/openai-agents/demo.sh' 2>&1 | tee integrations/openai-agents/demo.transcript.txt
 ```
 
-Human reviewer ritual:
-
-```text
-integrations/openai-agents/TEST_PLAN.md
-```
-
 The demo creates fresh artifacts under:
 
 ```text
 /tmp/stipul-openai-agents-demo/
 ```
 
-This is a source-checkout-only demo path. It reuses the focused integration test nodes to exercise the real MCP boundary and then runs `stipul verify` over the resulting evidence.
+This is a source-checkout-only demo path. It reuses the focused integration test scenarios to exercise the real MCP boundary and then runs `stipul verify` over the resulting evidence.
 
-Run from repo root: `bash integrations/openai-agents/demo.sh`. See `integrations/openai-agents/TEST_PLAN.md` for the supported reviewer path.
+Run from repo root: `bash integrations/openai-agents/demo.sh`.
 
 ## Demo Output
 
@@ -111,7 +105,7 @@ During source-checkout demo runs, you may see `Token secret isolation could not 
 
 This is expected in the local demo layout because the gateway is launched from the same source checkout and process tree as the calling integration client, so startup cannot verify the production isolation boundary.
 
-In production, the gateway and agent run in separate process trees, so token secret isolation is verifiable.
+In a separated production deployment, startup can verify token secret isolation.
 
 This warning does not change enforcement decisions, Chronicle evidence writes, or `stipul verify` results.
 
@@ -123,7 +117,7 @@ Run the focused integration test file:
 .venv/bin/python -m pytest integrations/openai-agents/test_openai_agents_stdio.py
 ```
 
-Optional targeted checks used for this work:
+Optional targeted checks:
 
 ```bash
 .venv/bin/python -m ruff check integrations/openai-agents
@@ -150,7 +144,6 @@ Optional targeted checks used for this work:
 - This does not yet prove production deployment hardening.
 - This does not yet prove SSE or HTTP transport support on the Stipul side.
 - The runtime factory in this directory is intentionally small and deterministic. It is not a general runtime framework.
-- OL-007 — run from repo root: `bash integrations/openai-agents/demo.sh`.
 
 ## Proven
 
@@ -159,7 +152,6 @@ Optional targeted checks used for this work:
 - Allow, deny, approval-required, unknown-tool, and kill-switch outcomes are deterministic and structured.
 - Chronicle evidence is written to authoritative `events.jsonl`.
 - Seal verification still succeeds for intact demo evidence and fails after tampering.
-- The integration was implemented without touching files outside `integrations/openai-agents/`.
 
 ## Not Yet Proven
 

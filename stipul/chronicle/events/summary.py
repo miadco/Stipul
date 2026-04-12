@@ -48,7 +48,7 @@ class SessionSummary:
     budget_exhaustion_timestamp: str | None
     budget_anomalies_detected: int
     chain_length: int
-    chain_integrity: str
+    pre_close_chain_integrity: str
     attestations: list[str]
     known_blind_spots: list[str]
     coverage_percentage: float | None = None
@@ -58,6 +58,11 @@ class SessionSummary:
     permit_allows: int = 0
     breakglass_allows: int = 0
     flagged_for_review: bool = False
+
+    @property
+    def chain_integrity(self) -> str:
+        """Backward-compatible alias for the pre-close summary field."""
+        return self.pre_close_chain_integrity
 
 
 def _format_zulu(value: datetime) -> str:
@@ -160,6 +165,7 @@ def build_summary(
     egress_attempted: dict[str, int] = defaultdict(int)
     egress_denied: dict[str, list[str]] = defaultdict(list)
 
+    total_calls = 0
     total_allowed = 0
     total_denied = 0
     total_approval_required = 0
@@ -180,6 +186,7 @@ def build_summary(
         sequence_id = event.get("sequence_id")
 
         if event_type == "tool_call":
+            total_calls += 1
             if decision == "allow":
                 tools_invoked[tool_name] += 1
                 total_allowed += 1
@@ -190,6 +197,8 @@ def build_summary(
             elif decision == "deny":
                 tools_denied[tool_name].append(reason)
                 total_denied += 1
+                if reason == "approval_required":
+                    total_approval_required += 1
             elif decision == "require_approval":
                 total_approval_required += 1
 
@@ -214,8 +223,6 @@ def build_summary(
         if reason == "gap_detected" or has_gap_subtype:
             if isinstance(sequence_id, int):
                 gap_detected_sequence_ids.append(sequence_id)
-
-    total_calls = total_allowed + total_denied + total_approval_required
 
     tool_limit = float(contract.max_tool_calls)
     net_limit = float(contract.max_net_calls)
@@ -298,7 +305,7 @@ def build_summary(
         budget_exhaustion_timestamp=exhaustion_timestamp,
         budget_anomalies_detected=budget_anomalies_detected,
         chain_length=len(events),
-        chain_integrity=_chain_integrity_text(chain_result),
+        pre_close_chain_integrity=_chain_integrity_text(chain_result),
         attestations=attestations,
         known_blind_spots=known_blind_spots,
         coverage_percentage=coverage_percentage,
@@ -317,25 +324,24 @@ def summary_to_event(
     agent_identity: str,
 ) -> dict[str, Any]:
     """
-    Build a logger-ready summary event payload.
-
-    `input_hash` is derived from canonical summary metadata so callers do not
-    need to fabricate a tool-input hash for this synthetic event type.
+    Build a logger-ready lifecycle event payload for session close.
     """
     if not isinstance(agent_identity, str) or not agent_identity:
         raise ValueError("agent_identity must be a non-empty string")
     metadata = asdict(summary)
-    input_hash = hashlib.sha256(canonical_json_bytes(metadata)).hexdigest()
 
     return {
-        "event_type": "write_op",
-        "decision": "allow",
-        "reason": "session_close",
-        "tool_name": "session_summary",
-        "risk_class": "read",
+        "event_type": "session_close",
+        "tool_name": None,
+        "risk_class": None,
+        "decision": None,
+        "reason": "session_closed",
         "contract_id": summary.contract_id,
         "agent_identity": agent_identity,
-        "input_hash": input_hash,
+        "input_hash": None,
+        "tool_input": None,
+        "rule_triggered": None,
+        "lifecycle_hash": None,
         "metadata": metadata,
     }
 

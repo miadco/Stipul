@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from stipul.chronicle.events.models import CanonicalEvent
 from stipul.cli.io import CLIError, read_jsonl
@@ -189,12 +189,12 @@ def _render_elev_op(event: CanonicalEvent) -> str:
     if event.tool_name == "__proxy__" and event.reason == "circuit_breaker_closed":
         return "Circuit breaker closed"
 
-    decision_label = _DECISION_LABELS[event.decision]
+    decision_label = _DECISION_LABELS[cast(str, event.decision)]
     return f"Elevated operation for {event.tool_name} - {decision_label}"
 
 
 def _render_event_summary(event: CanonicalEvent) -> str:
-    decision_label = _DECISION_LABELS[event.decision]
+    decision_label = _DECISION_LABELS[cast(str, event.decision)]
 
     if event.event_type == "elev_op":
         return _render_elev_op(event)
@@ -222,6 +222,8 @@ def _render_event_summary(event: CanonicalEvent) -> str:
 
 
 def _format_event_line(event: CanonicalEvent) -> str:
+    if event.event_type in {"session_open", "session_close"}:
+        return f"{event.timestamp} {event.event_type} {event.reason} session_id={event.session_id}"
     summary = _render_event_summary(event)
     reason_text = _reason_text(event)
     if reason_text is not None and event.event_type != "elev_op":

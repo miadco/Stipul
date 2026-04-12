@@ -130,7 +130,7 @@ def _validate_seal_payload(
         )
     if terminal_event.get("sequence_id") != terminal_sequence_id:
         raise ValueError(
-            "seal terminal_sequence_id does not match authoritative events.jsonl"
+            "seal does not match authoritative session evidence"
         )
     if terminal_event.get("timestamp") != terminal_timestamp:
         raise ValueError(

@@ -17,6 +17,32 @@ from stipul.chronicle.signing.keys import RuntimeKeyPair
 from stipul.chronicle.signing.signer import sign_event
 from stipul.utils.canonical import canonical_json_bytes, compute_prev_hash
 
+_EVENT_HASH_EXCLUDED_FIELDS = frozenset(
+    {
+        "event_hash",
+        "signature",
+        "prev_hash",
+        "sequence_id",
+        "key_id",
+        "key_created_at",
+        "algorithm",
+        "agent_identity",
+    }
+)
+_LIFECYCLE_EVENT_TYPES = frozenset({"session_open", "session_close"})
+_LIFECYCLE_NULL_FIELDS = frozenset(
+    {
+        "tool_name",
+        "risk_class",
+        "decision",
+        "input_hash",
+        "tool_input",
+        "rule_triggered",
+        "lifecycle_hash",
+        "metadata",
+    }
+)
+
 
 class EventWriteError(Exception):
     """Raised when appending an event to storage fails."""
@@ -28,6 +54,18 @@ def _now_iso_utc() -> str:
 
 def _hash_full_event_payload(event: dict[str, Any]) -> str:
     return hashlib.sha256(canonical_json_bytes(event)).hexdigest()
+
+
+def compute_event_hash(event: dict[str, Any]) -> str:
+    """Return the canonical body hash for a Chronicle event."""
+    if not isinstance(event, dict):
+        raise TypeError("event must be a dictionary")
+    payload = {
+        key: value
+        for key, value in event.items()
+        if key not in _EVENT_HASH_EXCLUDED_FIELDS
+    }
+    return hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
 
 
 @dataclass
@@ -56,6 +94,10 @@ class EventLogger:
     @property
     def last_event_timestamp(self) -> str | None:
         return self._last_event_timestamp
+
+    @property
+    def has_events(self) -> bool:
+        return self._sequence_id > 0
 
     @property
     def last_attestation(self) -> dict[str, Any] | None:
@@ -176,7 +218,10 @@ class EventLogger:
         decision: str,
         reason: str,
         agent_identity: str,
-        input_hash: str,
+        input_hash: str | None,
+        tool_input: dict[str, Any] | None = None,
+        rule_triggered: str | None = None,
+        lifecycle_hash: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> CanonicalEvent:
         """Append a decision-bearing proxy event to the authoritative stream."""
@@ -187,8 +232,14 @@ class EventLogger:
             "decision": decision,
             "reason": reason,
             "agent_identity": agent_identity,
-            "input_hash": input_hash,
+            "tool_input": dict(tool_input) if isinstance(tool_input, dict) else None,
         }
+        if input_hash is not None:
+            payload["input_hash"] = input_hash
+        if rule_triggered is not None:
+            payload["rule_triggered"] = rule_triggered
+        if lifecycle_hash is not None:
+            payload["lifecycle_hash"] = lifecycle_hash
         if metadata is not None:
             payload["metadata"] = dict(metadata)
         return self.log_event(payload)
@@ -215,10 +266,43 @@ class EventLogger:
             metadata = normalized_kwargs.get("metadata")
             if isinstance(metadata, dict):
                 normalized_kwargs["metadata"] = dict(metadata)
+            if "tool_input" not in normalized_kwargs:
+                normalized_kwargs["tool_input"] = None
+            if "rule_triggered" not in normalized_kwargs:
+                normalized_kwargs["rule_triggered"] = None
+            if "lifecycle_hash" not in normalized_kwargs:
+                normalized_kwargs["lifecycle_hash"] = None
+            tool_input = normalized_kwargs.get("tool_input")
+            if isinstance(tool_input, dict):
+                normalized_kwargs["tool_input"] = dict(tool_input)
 
             payload = self._build_payload(normalized_kwargs, expected_sequence)
-            payload["signature"] = sign_event(payload, self.signing_key.private_key)
-            event = CanonicalEvent(**payload)
+            preserve_null_fields = set()
+            if "tool_input" in payload:
+                preserve_null_fields.add("tool_input")
+            if "rule_triggered" in payload:
+                preserve_null_fields.add("rule_triggered")
+            if "lifecycle_hash" in payload:
+                preserve_null_fields.add("lifecycle_hash")
+            if payload.get("event_type") in _LIFECYCLE_EVENT_TYPES:
+                preserve_null_fields.update(_LIFECYCLE_NULL_FIELDS)
+            canonical_payload = {
+                key: value
+                for key, value in payload.items()
+                if value is not None or key in preserve_null_fields
+            }
+            # event_hash excludes event_hash, signature, prev_hash, sequence_id, key_id,
+            # key_created_at, algorithm, and agent_identity.
+            # Ordering requirement: compute the hash from the canonical event body before
+            # adding event_hash to the persisted payload, then sign and serialize the
+            # event with event_hash included.
+            event_hash = compute_event_hash(canonical_payload)
+            canonical_payload["event_hash"] = event_hash
+            canonical_payload["signature"] = sign_event(
+                canonical_payload,
+                self.signing_key.private_key,
+            )
+            event = CanonicalEvent(**canonical_payload)
             event_dict = event.to_dict()
             line = canonical_json_bytes(event_dict).decode("utf-8")
 
@@ -228,13 +312,13 @@ class EventLogger:
             except Exception as exc:
                 raise EventWriteError("failed to append signed event") from exc
 
-            event_hash = compute_prev_hash(event_dict)
+            chain_hash = compute_prev_hash(event_dict)
             self._sequence_id = expected_sequence
             self._last_event_timestamp = event.timestamp
-            self._last_event_hash = event_hash
+            self._last_event_hash = chain_hash
             self._last_attestation = {
                 "kind": "chronicle_attestation",
-                "event_hash": event_hash,
+                "event_hash": chain_hash,
                 "sequence_id": event.sequence_id,
                 "timestamp": event.timestamp,
                 "session_id": event.session_id,

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 import json
+from threading import Lock, Thread
 from typing import Any
 
 from mcp import types
@@ -63,26 +65,28 @@ class MCPGateway:
         "Minimal Stipul MCP gateway. Tool calls are enforced by the existing Writ proxy."
     )
     server: Server[Any] = field(init=False)
+    _tool_call_lock: Lock = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
+        self._tool_call_lock = Lock()
         self.server = Server(
             self.server_name,
             version=__version__,
             instructions=self.instructions,
         )
 
-        @self.server.list_tools()
+        @self.server.list_tools()  # type: ignore[no-untyped-call,untyped-decorator]
         async def list_tools() -> list[types.Tool]:
             return list(self._current_tools())
 
-        @self.server.call_tool()
+        @self.server.call_tool()  # type: ignore[untyped-decorator]
         async def call_tool(tool_name: str, arguments: dict[str, Any]) -> types.CallToolResult:
             raw_request = {
                 "tool_name": tool_name,
                 "inputs": arguments or {},
                 "metadata": {"ingress": "mcp_gateway"},
             }
-            result = self.proxy.handle_tool_call(raw_request, self.execute_tool)
+            result = await self._handle_tool_call(raw_request)
             return _to_call_tool_result(result)
 
     def _current_tools(self) -> Sequence[types.Tool]:
@@ -98,6 +102,50 @@ class MCPGateway:
                 write_stream,
                 self.server.create_initialization_options(),
             )
+
+    async def _handle_tool_call(self, raw_request: Mapping[str, Any]) -> Any:
+        loop = asyncio.get_running_loop()
+        result_future: asyncio.Future[Any] = loop.create_future()
+
+        def execute_tool(request: Mapping[str, Any]) -> Any:
+            return self.execute_tool(request)
+
+        def worker() -> None:
+            try:
+                with self._tool_call_lock:
+                    result = self.proxy.handle_tool_call(raw_request, execute_tool)
+            except BaseException as exc:
+                self._finish_tool_call(loop, result_future, exc=exc)
+            else:
+                self._finish_tool_call(loop, result_future, result=result)
+
+        Thread(
+            target=worker,
+            name="stipul-mcp-tool-call",
+            daemon=True,
+        ).start()
+        return await result_future
+
+    @staticmethod
+    def _finish_tool_call(
+        loop: asyncio.AbstractEventLoop,
+        result_future: asyncio.Future[Any],
+        *,
+        result: Any | None = None,
+        exc: BaseException | None = None,
+    ) -> None:
+        def resolve() -> None:
+            if result_future.done():
+                return
+            if exc is not None:
+                result_future.set_exception(exc)
+                return
+            result_future.set_result(result)
+
+        try:
+            loop.call_soon_threadsafe(resolve)
+        except RuntimeError:
+            return
 
 
 __all__ = ["MCPGateway", "ToolCatalog"]

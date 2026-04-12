@@ -8,7 +8,7 @@ import hmac
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, cast
 from uuid import UUID
 
 from stipul.charter.contract.schema import Contract
@@ -141,13 +141,13 @@ class DelegationGrant:
     def from_dict(cls, payload: Mapping[str, Any]) -> "DelegationGrant":
         if not isinstance(payload, Mapping):
             raise ValueError("delegation grant must be an object")
-        parent_actor = _normalize_actor("parent_actor", payload.get("parent_actor"))
-        delegated_actor = _normalize_actor("delegated_actor", payload.get("delegated_actor"))
-        issued_at = _format_zulu(_parse_zulu("issued_at", payload.get("issued_at")))
-        expires_at = _format_zulu(_parse_zulu("expires_at", payload.get("expires_at")))
-        contract_id = _normalize_uuid("contract_id", payload.get("contract_id"))
-        contract_hash = _normalize_hex64("contract_hash", payload.get("contract_hash"))
-        session_id = _normalize_uuid("session_id", payload.get("session_id"))
+        parent_actor = _normalize_actor("parent_actor", cast(str, payload.get("parent_actor")))
+        delegated_actor = _normalize_actor("delegated_actor", cast(str, payload.get("delegated_actor")))
+        issued_at = _format_zulu(_parse_zulu("issued_at", cast(str, payload.get("issued_at"))))
+        expires_at = _format_zulu(_parse_zulu("expires_at", cast(str, payload.get("expires_at"))))
+        contract_id = _normalize_uuid("contract_id", cast(str, payload.get("contract_id")))
+        contract_hash = _normalize_hex64("contract_hash", cast(str, payload.get("contract_hash")))
+        session_id = _normalize_uuid("session_id", cast(str, payload.get("session_id")))
         scope_tools = _normalize_items("scope_tools", payload.get("scope_tools"), allow_empty=False)
         scope_destinations = _normalize_items(
             "scope_destinations",
@@ -167,7 +167,7 @@ class DelegationGrant:
             session_id=session_id,
             scope_tools=scope_tools,
             scope_destinations=scope_destinations,
-            signature=signature,
+            signature=cast(str, signature),
         )
 
     def to_dict(self) -> dict[str, Any]:

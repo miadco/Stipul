@@ -8,6 +8,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from cryptography.hazmat.primitives import serialization
+
 from stipul.charter.contract.schema import Contract
 from stipul.charter.contract.utils import compute_contract_hash
 from stipul.chronicle.events.decisions import generate_decisions, write_decisions
@@ -34,8 +36,10 @@ CHAIN_OK = _ChainOk()
 class SessionArtifacts:
     session_dir: Path
     contract_path: Path
+    session_contract_path: Path
     contract: Contract
     keypair: RuntimeKeyPair
+    session_public_key_path: Path
     events_path: Path
     decisions_path: Path
     summary_path: Path
@@ -68,10 +72,24 @@ def create_signed_session(
 ) -> SessionArtifacts:
     contract_path, contract = write_contract_file(tmp_path)
     session_dir = tmp_path / "session"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    session_contract_path = session_dir / "contract.json"
     events_path = session_dir / "events.jsonl"
+    session_public_key_path = session_dir / "public_key.pem"
     decisions_path = session_dir / "decisions.jsonl"
     summary_path = session_dir / "summary.json"
     keypair = generate_keypair(tmp_path / ".stipul" / "keys")
+
+    session_contract_path.write_text(
+        json.dumps(contract.to_canonical_dict(), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    session_public_key_path.write_bytes(
+        keypair.public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+    )
 
     logger = EventLogger(
         store=EventStore(events_path),
@@ -106,8 +124,10 @@ def create_signed_session(
     return SessionArtifacts(
         session_dir=session_dir,
         contract_path=contract_path,
+        session_contract_path=session_contract_path,
         contract=contract,
         keypair=keypair,
+        session_public_key_path=session_public_key_path,
         events_path=events_path,
         decisions_path=decisions_path,
         summary_path=summary_path,
