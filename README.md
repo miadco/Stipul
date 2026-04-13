@@ -6,6 +6,15 @@ Your agents act. Can you prove what they did?
 
 Stipul is an agent authorization and audit platform for AI agents. It intercepts tool calls, enforces policy, and produces a cryptographic proof chain for what actually happened. Writ enforces the Charter, records every decision in the Chronicle, and produces a Seal.
 
+## When you need this
+
+- A support agent reading files and calling web tools needs an enforceable record of what it read, what outbound targets were denied, and whether that evidence still verifies.
+- A coding agent touching filesystem and shell needs hard policy boundaries before it can modify a repository or execute commands in CI.
+- An ops agent inspecting secrets and deployments needs sealed evidence that the runtime authorized the same actions later presented for review.
+
+If the answer is "trust me," you need Stipul.
+
+
 ## See it work — the stranger proof path
 
 Install the CLI from PyPI for Python 3.10+.
@@ -173,14 +182,6 @@ approval_quorum: 1
 ```
 
 This policy file defines allowed tools, forbidden tools, egress rules, and call limits for your agent. Agents cannot override it at runtime; Writ enforces it before execution. `stipul demo proof` uses the packaged demo Charter, and `stipul init` creates a starter Charter for your customization.
-
-## When you need this
-
-- A support agent reading files and calling web tools needs an enforceable record of what it read, what outbound targets were denied, and whether that evidence still verifies.
-- A coding agent touching filesystem and shell needs hard policy boundaries before it can modify a repository or execute commands in CI.
-- An ops agent inspecting secrets and deployments needs sealed evidence that the runtime authorized the same actions later presented for review.
-
-If the answer is "trust me," you need Stipul.
 
 ## Claude Code Integration
 
