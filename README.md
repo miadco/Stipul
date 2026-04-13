@@ -23,12 +23,6 @@ Install the CLI from PyPI for Python 3.10+.
 pip install stipul
 ```
 
-Write a starter Charter in the current directory.
-
-```bash
-stipul init
-```
-
 Run the proof demo; it uses the packaged demo Charter at `stipul/demo/demo_charter.yaml`.
 
 ```bash
@@ -146,6 +140,8 @@ Seal: VALID
 - **Seal** binds the recorded evidence to a cryptographic attestation that verification can check.
 
 ## Start your own policy
+
+Write a starter Charter in the current directory.
 
 Run `stipul init` to write a starter `charter.yaml` for your own agent in the current directory.
 
