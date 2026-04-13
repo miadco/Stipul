@@ -191,4 +191,4 @@ See the walkthrough: [Claude Code Quickstart](docs/claude-code-quickstart.md)
 ## Links
 
 PyPI: https://pypi.org/project/stipul/
-GitHub: https://github.com/miadco/stipul
+GitHub: https://github.com/miadco/Stipul
