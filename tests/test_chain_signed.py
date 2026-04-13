@@ -94,6 +94,24 @@ def _build_valid_chain(private_key, contract, count: int = 3) -> list[dict[str, 
     return events
 
 
+def _build_proxy(contract: Contract, events_path: Path, *, key_dir: Path | None = None) -> ProxyServer:
+    keypair = generate_keypair(key_dir or (events_path.parent / "keys"))
+    logger = EventLogger(
+        store=EventStore(events_path),
+        session_id=SESSION_ID,
+        contract_id=contract.contract_id,
+        contract_hash=compute_contract_hash(contract),
+        signing_key=keypair,
+        state_dir=events_path.parent,
+    )
+    return ProxyServer(
+        contract=contract,
+        event_logger=logger,
+        session_id=SESSION_ID,
+        state_dir=events_path.parent,
+    )
+
+
 def _failure_kinds(result) -> list[str]:
     return [failure.kind for failure in result.failures]
 
@@ -359,6 +377,105 @@ def test_chain_intact_status(tmp_path: Path, contract) -> None:
     result = verify_chain(events_path, keypair.public_key, contract)
     assert result.status == "INTACT"
     assert result.signed_event_count == 3
+    assert result.failures == []
+
+
+
+@pytest.mark.signed_chain
+def test_verify_chain_accepts_empty_session_lifecycle_boundary(tmp_path: Path, contract) -> None:
+    events_path = tmp_path / "events.jsonl"
+    proxy = _build_proxy(contract, events_path)
+    proxy.close()
+
+    persisted_events = [
+        json.loads(line)
+        for line in events_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    assert [event["event_type"] for event in persisted_events] == ["session_open", "session_close"]
+
+    result = verify_chain(events_path, proxy.event_logger.signing_key.public_key, contract)
+    assert result.status == "INTACT"
+    assert result.failures == []
+
+
+@pytest.mark.signed_chain
+def test_verify_chain_accepts_lifecycle_events_with_denied_tool_call(
+    tmp_path: Path, contract, monkeypatch
+) -> None:
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
+    events_path = tmp_path / "events.jsonl"
+    proxy = _build_proxy(contract, events_path)
+
+    proxy.handle_tool_call(
+        {"tool_name": "filesystem.write", "inputs": {"path": "/tmp/test", "content": "hello"}},
+        lambda _request: {"ok": True},
+    )
+    denied = proxy.handle_tool_call(
+        {"tool_name": "totally.unknown.tool", "inputs": {"path": "/tmp/test"}},
+        lambda _request: {"ok": True},
+    )
+    proxy.close()
+
+    result = verify_chain(events_path, proxy.event_logger.signing_key.public_key, contract)
+
+    assert denied == {
+        "decision": "deny",
+        "reason": "not_in_contract",
+        "tool_name": "totally.unknown.tool",
+    }
+    assert result.status == "INTACT"
+    assert result.failures == []
+
+
+@pytest.mark.signed_chain
+def test_verify_chain_accepts_same_session_rehydration_without_duplicate_lifecycle_events(
+    tmp_path: Path, contract, monkeypatch
+) -> None:
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
+    events_path = tmp_path / "events.jsonl"
+    first_proxy = _build_proxy(contract, events_path)
+    first_proxy.handle_tool_call(
+        {"tool_name": "filesystem.write", "inputs": {"path": "/tmp/test-a", "content": "a"}},
+        lambda _request: {"ok": True},
+    )
+
+    rehydrated_logger = EventLogger(
+        store=EventStore(events_path),
+        session_id=SESSION_ID,
+        contract_id=contract.contract_id,
+        contract_hash=compute_contract_hash(contract),
+        signing_key=first_proxy.event_logger.signing_key,
+        state_dir=events_path.parent,
+    )
+    rehydrated_proxy = ProxyServer(
+        contract=contract,
+        event_logger=rehydrated_logger,
+        session_id=SESSION_ID,
+        state_dir=events_path.parent,
+    )
+    rehydrated_proxy.handle_tool_call(
+        {"tool_name": "filesystem.write", "inputs": {"path": "/tmp/test-b", "content": "b"}},
+        lambda _request: {"ok": True},
+    )
+
+    rehydrated_proxy.close()
+    first_proxy.close()
+
+    persisted_events = [
+        json.loads(line)
+        for line in events_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    event_types = [event["event_type"] for event in persisted_events]
+
+    assert event_types.count("session_open") == 1
+    assert event_types.count("session_close") == 1
+    assert persisted_events[-1]["event_type"] == "session_close"
+
+    result = verify_chain(events_path, first_proxy.event_logger.signing_key.public_key, contract)
+    assert result.status == "INTACT"
     assert result.failures == []
 
 

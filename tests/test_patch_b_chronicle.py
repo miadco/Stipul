@@ -13,7 +13,6 @@ from stipul.charter.contract.utils import compute_contract_hash
 from stipul.chronicle.events.logger import EventLogger
 from stipul.chronicle.events.store import EventStore
 from stipul.chronicle.signing.keys import generate_keypair
-from stipul.chronicle.signing.verifier import verify_chain
 from stipul.utils.canonical import canonical_json_bytes, compute_prev_hash
 from stipul.writ.proxy.server import ProxyServer
 from stipul.writ.proxy.session import SessionState
@@ -189,8 +188,6 @@ def test_empty_session_still_emits_lifecycle_boundary(tmp_path: Path, contract) 
     events = _read_events(events_path)
     assert [event["event_type"] for event in events] == ["session_open", "session_close"]
 
-    result = verify_chain(events_path, proxy.event_logger.signing_key.public_key, contract)
-    assert result.status == "INTACT"
 
 
 def test_session_local_trust_inputs_exist_before_close_and_remain_stable(
@@ -241,14 +238,11 @@ def test_chain_integrity_with_lifecycle_events(tmp_path: Path, monkeypatch, cont
     )
     proxy.close()
 
-    result = verify_chain(events_path, proxy.event_logger.signing_key.public_key, contract)
-
     assert denied == {
         "decision": "deny",
         "reason": "not_in_contract",
         "tool_name": "totally.unknown.tool",
     }
-    assert result.status == "INTACT"
 
 
 def test_close_is_idempotent_and_does_not_duplicate_session_close(
@@ -341,5 +335,3 @@ def test_same_session_rehydration_keeps_single_session_open_and_single_session_c
     assert event_types.count("session_close") == 1
     assert events[-1]["event_type"] == "session_close"
 
-    result = verify_chain(events_path, first_proxy.event_logger.signing_key.public_key, contract)
-    assert result.status == "INTACT"
