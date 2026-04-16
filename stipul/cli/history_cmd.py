@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from stipul.chronicle.events.models import CanonicalEvent
+from stipul.cli.color import colorize, GREEN, RED, YELLOW
 from stipul.cli.io import CLIError, read_jsonl
 
 _DECISION_LABELS = {
@@ -190,11 +191,23 @@ def _render_elev_op(event: CanonicalEvent) -> str:
         return "Circuit breaker closed"
 
     decision_label = _DECISION_LABELS[cast(str, event.decision)]
+    if decision_label == "allowed":
+        decision_label = colorize(decision_label, GREEN)
+    elif decision_label == "denied":
+        decision_label = colorize(decision_label, RED)
+    elif decision_label == "approval required":
+        decision_label = colorize(decision_label, YELLOW)
     return f"Elevated operation for {event.tool_name} - {decision_label}"
 
 
 def _render_event_summary(event: CanonicalEvent) -> str:
     decision_label = _DECISION_LABELS[cast(str, event.decision)]
+    if decision_label == "allowed":
+        decision_label = colorize(decision_label, GREEN)
+    elif decision_label == "denied":
+        decision_label = colorize(decision_label, RED)
+    elif decision_label == "approval required":
+        decision_label = colorize(decision_label, YELLOW)
 
     if event.event_type == "elev_op":
         return _render_elev_op(event)

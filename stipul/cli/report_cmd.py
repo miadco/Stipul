@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from stipul.chronicle.events.models import CanonicalEvent
+from stipul.cli.color import colorize, GREEN, RED, YELLOW
 from stipul.cli.io import CLIError, ensure_session_dir, read_jsonl
 from stipul.cli.verify_cmd import trust_status, verification_exit_code, verify_session
 from stipul.exceptions import ContractValidationError
@@ -262,13 +263,13 @@ def _attempt_sentence(event: CanonicalEvent) -> str:
 def _outcome_sentence(event: CanonicalEvent) -> str:
     tool_name = _display_tool_name(event.tool_name) or "The requested action"
     if event.reason == "approval_required" or event.decision == "require_approval":
-        return f"{tool_name} was held for approval."
+        return f"{tool_name} was {colorize('held for approval', YELLOW)}."
     if event.decision == "deny":
-        return f"{tool_name} was denied."
+        return f"{tool_name} was {colorize('denied', RED)}."
     if event.decision == "allow":
         if event.reason == "risk_class" and event.rule_triggered == "risk_class":
-            return f"{tool_name} was allowed under the charter's risk class policy."
-        return f"{tool_name} was allowed."
+            return f"{tool_name} was {colorize('allowed', GREEN)} under the charter's risk class policy."
+        return f"{tool_name} was {colorize('allowed', GREEN)}."
     return f"{tool_name} did not have a recorded outcome."
 
 

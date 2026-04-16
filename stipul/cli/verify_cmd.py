@@ -10,6 +10,7 @@ from typing import Any
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
+from stipul.cli.color import colorize, GREEN, RED, YELLOW
 from stipul.cli.io import CLIError
 from stipul.cli.io import ensure_session_dir, write_json
 from stipul.charter.contract.loader import load_charter
@@ -84,12 +85,30 @@ def _build_report(
 
 
 def _render_receipt(chain_result: Any, seal_result: SealVerificationResult) -> str:
+    chain_status_display = chain_result.status
+    if chain_result.status == "INTACT":
+        chain_status_display = colorize("INTACT", GREEN)
+    elif chain_result.status == "BROKEN":
+        chain_status_display = colorize("BROKEN", RED)
+    elif chain_result.status == "ERROR":
+        chain_status_display = colorize("ERROR", RED)
+    elif chain_result.status == "UNVERIFIABLE":
+        chain_status_display = colorize("UNVERIFIABLE", YELLOW)
+
+    seal_status_display = seal_result.status
+    if seal_result.status == "VALID":
+        seal_status_display = colorize("VALID", GREEN)
+    elif seal_result.status == "INVALID":
+        seal_status_display = colorize("INVALID", RED)
+    elif seal_result.status == "ABSENT":
+        seal_status_display = colorize("ABSENT", YELLOW)
+
     lines = [
         "Verification receipt",
         f"Session: {chain_result.session_id or 'unknown'}",
         f"Trust: {trust_status(chain_status=chain_result.status, seal_status=seal_result.status)}",
-        f"Chain: {chain_result.status}",
-        f"Seal: {seal_result.status}",
+        f"Chain: {chain_status_display}",
+        f"Seal: {seal_status_display}",
     ]
 
     if seal_result.status != "VALID" and seal_result.error:
@@ -169,10 +188,10 @@ def _terminal_line(seal_result: SealVerificationResult) -> str | None:
 
 def trust_status(*, chain_status: str, seal_status: str) -> str:
     if chain_status == "INTACT" and seal_status == "VALID":
-        return "VERIFIED"
+        return colorize("VERIFIED", GREEN)
     if chain_status == "INTACT" and seal_status == "ABSENT":
-        return "UNVERIFIED (unsealed)"
-    return "REJECTED"
+        return colorize("UNVERIFIED (unsealed)", YELLOW)
+    return colorize("REJECTED", RED)
 
 
 def verification_exit_code(

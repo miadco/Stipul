@@ -12,6 +12,7 @@ from importlib.resources import as_file, files
 from pathlib import Path
 from typing import Iterator
 
+from stipul.cli.color import colorize, GREEN, RED
 from stipul.cli.io import CLIError, read_jsonl, sha256_bytes
 from stipul.cli.verify_cmd import trust_status, verify_session
 from stipul.writ.proxy.server import ProxyServer
@@ -137,6 +138,23 @@ def _display_reason(event: dict[str, object]) -> str | None:
 
 
 def _replay_rows(events: list[dict[str, object]]) -> tuple[list[str], int]:
+    def _short_timestamp(value: object) -> str:
+        if not isinstance(value, str):
+            return "??:??:??Z"
+        parts = value.split("T", 1)
+        if len(parts) != 2:
+            return "??:??:??Z"
+        time_part = parts[1]
+        if time_part.endswith("Z"):
+            candidate = time_part
+        elif time_part.endswith("+00:00"):
+            candidate = f"{time_part[:-6]}Z"
+        else:
+            return "??:??:??Z"
+        if len(candidate) < 9 or candidate[2] != ":" or candidate[5] != ":" or not candidate.endswith("Z"):
+            return "??:??:??Z"
+        return candidate[:8] + "Z"
+
     lines: list[str] = []
     row_number = 0
     display_event_count = 0
@@ -146,17 +164,24 @@ def _replay_rows(events: list[dict[str, object]]) -> tuple[list[str], int]:
             tool_name = event.get("tool_name")
             decision = event.get("decision")
             reason = _display_reason(event)
+            ts_short = _short_timestamp(event.get("timestamp"))
             if not all(isinstance(value, str) and value for value in (tool_name, decision, reason)):
                 continue
+            color = ""
+            if decision == "allow":
+                color = GREEN
+            elif decision == "deny":
+                color = RED
             row_number += 1
             display_event_count += 1
             lines.append(
-                f"  seq {row_number:<2} {decision:<7} {tool_name:<20} reason: {reason}"
+                f"  seq {row_number:<2}  {ts_short}  {colorize(decision, color):<7}  {tool_name:<20} reason: {reason}"
             )
             continue
         if event_type == "session_close":
             row_number += 1
-            lines.append(f"  seq {row_number:<2} close   session_close")
+            ts_short = _short_timestamp(event.get("timestamp"))
+            lines.append(f"  seq {row_number:<2}  {ts_short}  {'close':<7}  session_close")
     return lines, display_event_count
 
 
