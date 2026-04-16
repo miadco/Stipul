@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 from collections import defaultdict
@@ -13,7 +12,6 @@ from typing import Any, Protocol
 
 from stipul.charter.contract.schema import Contract
 from stipul.charter.contract.utils import compute_contract_hash
-from stipul.utils.canonical import canonical_json_bytes
 
 logger = logging.getLogger("stipul.chronicle.events.summary")
 

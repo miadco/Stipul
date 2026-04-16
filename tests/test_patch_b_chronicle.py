@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
-from types import SimpleNamespace
 
 from cryptography.hazmat.primitives import serialization
 
@@ -334,4 +333,3 @@ def test_same_session_rehydration_keeps_single_session_open_and_single_session_c
     assert event_types.count("session_open") == 1
     assert event_types.count("session_close") == 1
     assert events[-1]["event_type"] == "session_close"
-

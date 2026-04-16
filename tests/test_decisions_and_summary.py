@@ -18,7 +18,6 @@ from stipul.chronicle.events.decisions import (
     write_decisions,
 )
 from stipul.chronicle.events.summary import build_summary, summary_to_event, write_summary_json
-from stipul.utils.canonical import canonical_json_bytes
 
 try:
     from hypothesis import given
