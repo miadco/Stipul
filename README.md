@@ -14,35 +14,35 @@ Agent authorization and audit platform for AI agents. Stipul enforces policy at 
 
 AI agents are moving from chat into execution. They read files, call APIs, run shell commands, touch secrets, and interact with operational systems. Once an agent acts on the world, the question stops being "what did it say?" and becomes "what did it do, and can you prove it?"
 
-Ordinary logging was not built to prove runtime enforcement. Logs can be edited, policy intent can drift from runtime behavior, and when something goes wrong - a leaked secret, an unauthorized deletion, a compliance violation - teams are left arguing over records instead of verifying them.
+Ordinary logging was not built to prove runtime enforcement. Logs can be edited, policy intent can drift from runtime behavior, and when something goes wrong — a leaked secret, an unauthorized deletion, a compliance violation — teams are left arguing over records instead of verifying them.
 
-That gap is the problem Stipul exists to close. Not just governance - admissible evidence of what your agents did.
+That gap is the problem Stipul exists to close. Not just governance — admissible evidence of what your agents did.
 
 ## When you need this
 
 A **support agent** reads customer files and calls web tools. You need an enforceable record of what it accessed, which outbound targets were denied, and whether the evidence still verifies later.
 
-A **coding agent** touches filesystem and shell. You need hard policy boundaries before it can modify a repository or execute commands in CI - not a post-incident explanation built from logs.
+A **coding agent** touches filesystem and shell. You need hard policy boundaries before it can modify a repository or execute commands in CI — not a post-incident explanation built from logs.
 
-If the answer to "can you prove it?" is "trust me" - you need Stipul.
+If the answer to "can you prove it?" is "trust me" — you need Stipul.
 
 ## How Stipul works
 
 You define policy in a **Charter**: what tools an agent can use, what is forbidden, where it may send traffic, and how much it may do. The Charter is declarative, version-controlled, and not overridable at runtime.
 
-**Writ** enforces that Charter at the tool execution boundary. Every tool call is intercepted and evaluated against policy *before* it runs - not observed after the fact.
+**Writ** enforces that Charter at the tool execution boundary. Every tool call is intercepted and evaluated against policy *before* it runs — not observed after the fact.
 
 Every enforcement decision is recorded in the **Chronicle**, a tamper-evident `events.jsonl` chain where each entry is linked to the previous one. Alterations are detectable because the chain no longer verifies.
 
 The **Seal** binds the evidence chain to a cryptographic attestation. Verification checks the chain integrity and the seal together. If anything has been altered, Stipul rejects the record.
 
-Policy -> enforcement -> evidence -> proof.
+Policy → enforcement → evidence → proof.
 
 ## What makes Stipul different
 
 **Runtime enforcement, not post-hoc observation.** Policy is applied before the tool call executes, not logged after it happens.
 
-**Deterministic policy, not semantic classification.** Decisions are based on declarative rules - allowed tools, forbidden tools, egress allowlists - not ML models interpreting intent.
+**Deterministic policy, not semantic classification.** Decisions are based on declarative rules — allowed tools, forbidden tools, egress allowlists — not ML models interpreting intent.
 
 **Tamper-evident evidence, not structured logs.** Every decision is chained. Altering any entry breaks the chain and verification fails.
 
@@ -59,7 +59,7 @@ pip install stipul
 stipul demo proof
 ```
 
-The demo runs offline against a packaged Charter - no external dependencies, no framework integration required.
+The demo runs offline against a packaged Charter — no external dependencies, no framework integration required.
 
 ```
 ═══ Stipul Proof Demo ═══
@@ -82,15 +82,15 @@ Trust: VERIFIED
 The seal records a cryptographic attestation over the session evidence.
 Inspect it yourself, verify the session as-is, then change a recorded value and re-verify.
 
-Step 1 - View the current seal:
+Step 1 — View the current seal:
 
   cat <session-dir>/seal.json | python3 -m json.tool
 
-Step 2 - Verify the session as-is:
+Step 2 — Verify the session as-is:
 
   stipul verify <session-dir>
 
-Step 3 - Now tamper with the seal:
+Step 3 — Now tamper with the seal:
 
   sed -i 's/"terminal_sequence_id": 5/"terminal_sequence_id": 999/' <session-dir>/seal.json
 
@@ -98,7 +98,7 @@ Step 3 - Now tamper with the seal:
 
   sed -i 's/"version": 1/"version": 42/' <session-dir>/seal.json
 
-Step 4 - Re-verify the session:
+Step 4 — Re-verify the session:
 
   stipul verify <session-dir>
 
@@ -111,9 +111,9 @@ For the complete tamper challenge walkthrough, verification receipts, and plain-
 
 Stipul integrates with existing agent frameworks through a lightweight enforcement boundary:
 
-- **[Claude Code](docs/claude-code-quickstart.md)** - review mode with sealed session verification
-- **[OpenAI Agents SDK](integrations/openai-agents/)** - tool-call interception via stdio
-- **[LangGraph](integrations/langgraph/)** - enforcement layer for LangChain agent graphs
+- **[Claude Code](docs/claude-code-quickstart.md)** — review mode with sealed session verification
+- **[OpenAI Agents SDK](integrations/openai-agents/)** — tool-call interception via stdio
+- **[LangGraph](integrations/langgraph/)** — enforcement layer for LangChain agent graphs
 
 ## Start with proof
 
