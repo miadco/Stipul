@@ -175,7 +175,7 @@ def _replay_rows(events: list[dict[str, object]]) -> tuple[list[str], int]:
             row_number += 1
             display_event_count += 1
             lines.append(
-                f"  seq {row_number:<2}  {ts_short}  {colorize(decision, color):<7}  {tool_name:<20} reason: {reason}"
+                f"  seq {row_number:<2}  {ts_short}  {colorize(str(decision), color):<7}  {tool_name:<20} reason: {reason}"
             )
             continue
         if event_type == "session_close":

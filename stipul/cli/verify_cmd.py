@@ -95,7 +95,7 @@ def _render_receipt(chain_result: Any, seal_result: SealVerificationResult) -> s
     elif chain_result.status == "UNVERIFIABLE":
         chain_status_display = colorize("UNVERIFIABLE", YELLOW)
 
-    seal_status_display = seal_result.status
+    seal_status_display: str = seal_result.status
     if seal_result.status == "VALID":
         seal_status_display = colorize("VALID", GREEN)
     elif seal_result.status == "INVALID":
