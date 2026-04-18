@@ -19,7 +19,7 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
         help="Replay an events trace against a Charter policy",
     )
     parser.add_argument("--events", required=True)
-    parser.add_argument("--contract", required=True)
+    parser.add_argument("--charter", required=True)
     parser.add_argument("--json-out")
     parser.set_defaults(handler=run)
 
@@ -29,7 +29,7 @@ def run(args: argparse.Namespace) -> int:
         events_path = Path(args.events)
         if not events_path.exists():
             raise CLIError(f"Events file not found: {events_path}", exit_code=3)
-        contract = load_charter(Path(args.contract)).contract
+        contract = load_charter(Path(args.charter)).contract
         simulator = PolicySimulator()
         summary = simulator.simulate(events_path, contract)
         print(simulator.format_results(summary))

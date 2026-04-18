@@ -1,4 +1,4 @@
-"""Lint-contract command."""
+"""Lint-charter command."""
 
 from __future__ import annotations
 
@@ -14,17 +14,17 @@ from stipul.exceptions import ContractValidationError
 
 def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     parser = subparsers.add_parser(
-        "lint-contract",
+        "lint-charter",
         help="Lint a Charter policy for operator foot-guns",
     )
-    parser.add_argument("--contract", required=True)
+    parser.add_argument("--charter", required=True)
     parser.add_argument("--json-out")
     parser.set_defaults(handler=run)
 
 
 def run(args: argparse.Namespace) -> int:
     try:
-        loaded = load_charter(Path(args.contract))
+        loaded = load_charter(Path(args.charter))
         lint_result = lint_contract_payload(loaded.payload, loaded.contract)
         human_output = _format_human(lint_result)
         print(human_output)

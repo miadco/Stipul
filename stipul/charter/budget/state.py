@@ -53,7 +53,7 @@ def load_budget_state(state_dir: Path, session_id: str) -> BudgetTracker | None:
 
     if payload.get("exhausted") is True:
         raise BudgetExhaustedError(
-            "Budget exhausted in prior session. Start a new session with a new contract."
+            "Budget exhausted in prior session. Start a new session with a new charter."
         )
 
     return BudgetTracker(

@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from stipul.charter.contract.lint import lint_contract_payload
 from stipul.charter.contract.schema import Contract
-from tests.cli_support import load_base_contract_dict
+from tests.cli_support import load_base_charter_dict
 
 
-def test_lint_valid_contract_has_no_errors() -> None:
-    payload = load_base_contract_dict()
+def test_lint_valid_charter_has_no_errors() -> None:
+    payload = load_base_charter_dict()
     contract = Contract.from_dict(payload)
 
     result = lint_contract_payload(payload, contract)
@@ -17,7 +17,7 @@ def test_lint_valid_contract_has_no_errors() -> None:
 
 
 def test_lint_reports_missing_policy_definition() -> None:
-    payload = load_base_contract_dict()
+    payload = load_base_charter_dict()
     payload["allowed_tools"] = []
     payload["never_allow_tools"] = []
     payload["tool_risk_classes"] = {}
@@ -30,7 +30,7 @@ def test_lint_reports_missing_policy_definition() -> None:
 
 
 def test_lint_warns_on_empty_egress_allowlist() -> None:
-    payload = load_base_contract_dict()
+    payload = load_base_charter_dict()
     payload["egress_allowlist"] = []
     contract = Contract.from_dict(payload)
 

@@ -40,7 +40,7 @@ def load_charter_payload(path: str | Path) -> dict[str, Any]:
     try:
         raw_text = charter_path.read_text(encoding="utf-8")
     except FileNotFoundError as exc:
-        raise FileNotFoundError(f"Contract file not found: {charter_path}") from exc
+        raise FileNotFoundError(f"Charter file not found: {charter_path}") from exc
 
     try:
         if suffix == ".json":
@@ -49,7 +49,7 @@ def load_charter_payload(path: str | Path) -> dict[str, Any]:
             payload = yaml.safe_load(raw_text)
         else:
             raise ValueError(
-                f"Unsupported contract file extension for {charter_path}: "
+                f"Unsupported charter file extension for {charter_path}: "
                 "expected .json, .yaml, or .yml"
             )
     except json.JSONDecodeError as exc:
@@ -60,7 +60,7 @@ def load_charter_payload(path: str | Path) -> dict[str, Any]:
         raise ValueError(f"Invalid YAML in {charter_path}: {exc}") from exc
 
     if not isinstance(payload, dict):
-        raise ValueError(f"Contract file must contain a top-level object: {charter_path}")
+        raise ValueError(f"Charter file must contain a top-level object: {charter_path}")
     return payload
 
 

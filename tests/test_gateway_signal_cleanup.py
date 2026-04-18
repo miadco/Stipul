@@ -81,7 +81,7 @@ def test_gateway_sigterm_emits_session_close_and_writes_seal(tmp_path: Path) -> 
                     "stipul.cli.main",
                     "gateway",
                     "mcp",
-                    "--contract",
+                    "--charter",
                     str(contract_path),
                     "--session-dir",
                     str(session_dir),

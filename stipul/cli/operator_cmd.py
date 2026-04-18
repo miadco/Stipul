@@ -76,7 +76,7 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
 
 def _add_common_proxy_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--session-dir", required=True)
-    parser.add_argument("--contract", required=True)
+    parser.add_argument("--charter", required=True)
 
 
 def _read_first_session_id(events_path: Path) -> str | None:
@@ -176,7 +176,7 @@ def _print_approval_status(payload: dict[str, Any]) -> None:
 def run(args: argparse.Namespace) -> int:
     try:
         session_dir = ensure_session_dir(Path(args.session_dir))
-        proxy = _build_proxy(session_dir, Path(args.contract))
+        proxy = _build_proxy(session_dir, Path(args.charter))
         try:
             if args.operator_command == "kill-switch":
                 proxy.set_kill_switch(

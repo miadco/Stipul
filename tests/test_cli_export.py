@@ -23,7 +23,7 @@ def test_cli_export_writes_bundle_and_manifest(tmp_path: Path) -> None:
         str(artifacts.session_dir),
         "--out-dir",
         str(out_dir),
-        "--contract",
+        "--charter",
         str(artifacts.contract_path),
         "--public-key",
         str(artifacts.keypair.public_key_path),
@@ -60,7 +60,7 @@ def test_cli_export_redact_uses_redacted_events_file(tmp_path: Path) -> None:
         str(artifacts.session_dir),
         "--out-dir",
         str(out_dir),
-        "--contract",
+        "--charter",
         str(artifacts.contract_path),
         "--redact",
     )
@@ -79,7 +79,7 @@ def test_cli_export_redact_uses_redacted_events_file(tmp_path: Path) -> None:
 def test_cli_export_siem_out_writes_filtered_jsonl_and_manifest_from_yaml_contract(
     tmp_path: Path,
 ) -> None:
-    contract_payload = json.loads((Path(__file__).parent / "fixtures" / "base_contract.json").read_text(encoding="utf-8"))
+    contract_payload = json.loads((Path(__file__).parent / "fixtures" / "base_charter.json").read_text(encoding="utf-8"))
     contract_path = tmp_path / "contract.yaml"
     contract_path.write_text(yaml.safe_dump(contract_payload, sort_keys=False), encoding="utf-8")
     artifacts = create_signed_session(
@@ -121,7 +121,7 @@ def test_cli_export_siem_out_writes_filtered_jsonl_and_manifest_from_yaml_contra
         str(artifacts.session_dir),
         "--out-dir",
         str(out_dir),
-        "--contract",
+        "--charter",
         str(contract_path),
         "--siem-out",
         str(siem_out),
@@ -194,7 +194,7 @@ def test_cli_export_timestamp_rfc3161_reports_receipt_details(
     args = argparse.Namespace(
         session_dir=str(artifacts.session_dir),
         out_dir=str(out_dir),
-        contract=str(artifacts.contract_path),
+        charter=str(artifacts.contract_path),
         public_key=str(artifacts.keypair.public_key_path),
         scan_report=None,
         redact=False,
@@ -227,7 +227,7 @@ def test_cli_export_rejects_redact_with_timestamp_rfc3161(tmp_path: Path) -> Non
     args = argparse.Namespace(
         session_dir=str(artifacts.session_dir),
         out_dir=str(out_dir),
-        contract=str(artifacts.contract_path),
+        charter=str(artifacts.contract_path),
         public_key=None,
         scan_report=None,
         redact=True,
@@ -254,7 +254,7 @@ def test_cli_export_rejects_invalid_tsa_url_scheme(tmp_path: Path) -> None:
         str(artifacts.session_dir),
         "--out-dir",
         str(out_dir),
-        "--contract",
+        "--charter",
         str(artifacts.contract_path),
         "--public-key",
         str(artifacts.keypair.public_key_path),

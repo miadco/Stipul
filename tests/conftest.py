@@ -10,7 +10,7 @@ from stipul.charter.contract.schema import Contract
 from stipul.charter.engine.policy import RuntimeState
 from stipul.models import RiskClass
 
-FIXTURE_PATH = Path(__file__).parent / "fixtures" / "base_contract.json"
+FIXTURE_PATH = Path(__file__).parent / "fixtures" / "base_charter.json"
 
 
 @pytest.fixture

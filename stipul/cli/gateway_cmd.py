@@ -44,7 +44,7 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
         "mcp",
         help="Run the MCP gateway over stdio",
     )
-    mcp_parser.add_argument("--contract", required=True)
+    mcp_parser.add_argument("--charter", required=True)
     mcp_parser.add_argument("--session-dir", required=True)
     mcp_parser.add_argument("--session-id", required=True)
     mcp_parser.add_argument(
@@ -112,7 +112,7 @@ def run(args: argparse.Namespace) -> int:
             raise CLIError("--control-port must be >= 0", exit_code=3)
         session_dir = Path(args.session_dir)
         proxy = ProxyServer.from_contract_path(
-            args.contract,
+            args.charter,
             session_id=args.session_id,
             events_path=session_dir / "events.jsonl",
         )

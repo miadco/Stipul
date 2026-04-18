@@ -20,7 +20,7 @@ from stipul.chronicle.signing.keys import RuntimeKeyPair, generate_keypair
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-FIXTURE_PATH = REPO_ROOT / "tests" / "fixtures" / "base_contract.json"
+FIXTURE_PATH = REPO_ROOT / "tests" / "fixtures" / "base_charter.json"
 DEFAULT_SESSION_ID = "11111111-1111-1111-1111-111111111111"
 
 
@@ -45,15 +45,15 @@ class SessionArtifacts:
     summary_path: Path
 
 
-def load_base_contract_dict() -> dict[str, Any]:
+def load_base_charter_dict() -> dict[str, Any]:
     payload = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
-        raise ValueError("base contract fixture must be a JSON object")
+        raise ValueError("base charter fixture must be a JSON object")
     return payload
 
 
 def write_contract_file(tmp_path: Path, payload: dict[str, Any] | None = None) -> tuple[Path, Contract]:
-    contract_payload = dict(payload or load_base_contract_dict())
+    contract_payload = dict(payload or load_base_charter_dict())
     contract_path = tmp_path / "contract.json"
     contract_path.parent.mkdir(parents=True, exist_ok=True)
     contract_path.write_text(

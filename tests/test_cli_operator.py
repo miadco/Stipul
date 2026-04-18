@@ -42,7 +42,7 @@ def test_operator_cli_enable_status_and_disable(tmp_path: Path) -> None:
         "status",
         "--session-dir",
         str(artifacts.session_dir),
-        "--contract",
+        "--charter",
         str(artifacts.contract_path),
     )
 
@@ -59,7 +59,7 @@ def test_operator_cli_enable_status_and_disable(tmp_path: Path) -> None:
         "enable",
         "--session-dir",
         str(artifacts.session_dir),
-        "--contract",
+        "--charter",
         str(artifacts.contract_path),
         "--by",
         "operator@example.com",
@@ -94,7 +94,7 @@ def test_operator_cli_enable_status_and_disable(tmp_path: Path) -> None:
         "status",
         "--session-dir",
         str(artifacts.session_dir),
-        "--contract",
+        "--charter",
         str(artifacts.contract_path),
     )
 
@@ -109,7 +109,7 @@ def test_operator_cli_enable_status_and_disable(tmp_path: Path) -> None:
         "disable",
         "--session-dir",
         str(artifacts.session_dir),
-        "--contract",
+        "--charter",
         str(artifacts.contract_path),
         "--by",
         "operator@example.com",
@@ -190,7 +190,7 @@ def test_operator_cli_approval_commands_delegate_to_proxy_methods(
         approval_action="status",
         request_id="req-1",
         session_dir=str(tmp_path),
-        contract=str(tmp_path / "contract.json"),
+        charter=str(tmp_path / "contract.json"),
     )
     approve_args = argparse.Namespace(
         operator_command="approval",
@@ -198,7 +198,7 @@ def test_operator_cli_approval_commands_delegate_to_proxy_methods(
         request_id="req-1",
         by="b" * 64,
         session_dir=str(tmp_path),
-        contract=str(tmp_path / "contract.json"),
+        charter=str(tmp_path / "contract.json"),
     )
 
     assert operator_cmd.run(status_args) == 0

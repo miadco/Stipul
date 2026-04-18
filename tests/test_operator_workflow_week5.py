@@ -12,7 +12,7 @@ from stipul.chronicle.events.logger import EventLogger
 from stipul.chronicle.events.store import EventStore
 from stipul.chronicle.events.summary import build_summary, write_summary_json
 from stipul.chronicle.signing.keys import generate_keypair
-from tests.cli_support import DEFAULT_SESSION_ID, load_base_contract_dict, run_cli
+from tests.cli_support import DEFAULT_SESSION_ID, load_base_charter_dict, run_cli
 
 
 class _ChainOk:
@@ -21,7 +21,7 @@ class _ChainOk:
 
 
 def test_operator_workflow_week5(tmp_path: Path) -> None:
-    contract_payload = load_base_contract_dict()
+    contract_payload = load_base_charter_dict()
     contract_path = tmp_path / "contract.json"
     contract_path.write_text(
         json.dumps(contract_payload, indent=2, sort_keys=True) + "\n",
@@ -81,14 +81,14 @@ def test_operator_workflow_week5(tmp_path: Path) -> None:
     )
     write_summary_json(summary, summary_path)
 
-    lint_result = run_cli("lint-contract", "--contract", str(contract_path))
+    lint_result = run_cli("lint-charter", "--charter", str(contract_path))
     assert lint_result.returncode == 0
 
     verify_result = run_cli(
         "verify",
         "--session-dir",
         str(session_dir),
-        "--contract",
+        "--charter",
         str(contract_path),
         "--public-key",
         str(keypair.public_key_path),
@@ -102,7 +102,7 @@ def test_operator_workflow_week5(tmp_path: Path) -> None:
         str(session_dir),
         "--out-dir",
         str(bundle_dir),
-        "--contract",
+        "--charter",
         str(contract_path),
         "--public-key",
         str(keypair.public_key_path),
@@ -119,7 +119,7 @@ def test_operator_workflow_week5(tmp_path: Path) -> None:
         "verify",
         "--session-dir",
         str(bundle_dir),
-        "--contract",
+        "--charter",
         str(bundle_dir / "contract.json"),
         "--public-key",
         str(bundle_dir / "public_key.pem"),

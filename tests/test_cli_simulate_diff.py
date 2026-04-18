@@ -6,7 +6,7 @@ from pathlib import Path
 
 import yaml
 
-from tests.cli_support import load_base_contract_dict, run_cli, write_contract_file
+from tests.cli_support import load_base_charter_dict, run_cli, write_contract_file
 
 
 def _write_events(path: Path, rows: list[dict[str, object]]) -> None:
@@ -23,7 +23,7 @@ def _write_yaml_contract(path: Path, payload: dict[str, object]) -> Path:
 
 
 def test_cli_simulate_reports_changed_count_and_json(tmp_path: Path) -> None:
-    payload = load_base_contract_dict()
+    payload = load_base_charter_dict()
     payload["allowed_tools"] = ["web.search"]
     payload["tool_risk_classes"] = {"web.search": "read"}
     contract_path = _write_yaml_contract(tmp_path / "contract.yaml", payload)
@@ -47,7 +47,7 @@ def test_cli_simulate_reports_changed_count_and_json(tmp_path: Path) -> None:
         "simulate",
         "--events",
         str(events_path),
-        "--contract",
+        "--charter",
         str(contract_path),
         "--json-out",
         str(json_out),
@@ -62,7 +62,7 @@ def test_cli_simulate_reports_changed_count_and_json(tmp_path: Path) -> None:
 
 
 def test_cli_diff_reports_only_changed_records(tmp_path: Path) -> None:
-    payload_a = load_base_contract_dict()
+    payload_a = load_base_charter_dict()
     payload_b = copy.deepcopy(payload_a)
     payload_b["tool_risk_classes"]["filesystem.write"] = "irreversible"
     contract_a_path = _write_yaml_contract(tmp_path / "a" / "contract.yaml", payload_a)
@@ -95,9 +95,9 @@ def test_cli_diff_reports_only_changed_records(tmp_path: Path) -> None:
         "diff",
         "--events",
         str(events_path),
-        "--contract-a",
+        "--charter-a",
         str(contract_a_path),
-        "--contract-b",
+        "--charter-b",
         str(contract_b_path),
         "--json-out",
         str(json_out),
@@ -119,7 +119,7 @@ def test_cli_simulate_returns_fatal_for_missing_input(tmp_path: Path) -> None:
         "simulate",
         "--events",
         str(tmp_path / "missing.jsonl"),
-        "--contract",
+        "--charter",
         str(contract_path),
     )
 

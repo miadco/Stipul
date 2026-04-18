@@ -226,7 +226,7 @@ def test_load_budget_state_raises_when_exhausted(tmp_path: Path) -> None:
 
     with pytest.raises(
         BudgetExhaustedError,
-        match="Budget exhausted in prior session. Start a new session with a new contract.",
+        match="Budget exhausted in prior session. Start a new session with a new charter.",
     ):
         load_budget_state(tmp_path, _SESSION_ID)
 
@@ -473,7 +473,7 @@ def test_proxy_startup_refuses_exhausted_budget_state(
 
     with pytest.raises(
         BudgetExhaustedError,
-        match="Budget exhausted in prior session. Start a new session with a new contract.",
+        match="Budget exhausted in prior session. Start a new session with a new charter.",
     ):
         ProxyServer.from_contract_path(
             contract_path=contract_path,

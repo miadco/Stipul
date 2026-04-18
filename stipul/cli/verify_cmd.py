@@ -15,7 +15,6 @@ from stipul.cli.io import CLIError
 from stipul.cli.io import ensure_session_dir, write_json
 from stipul.charter.contract.loader import load_charter
 from stipul.exceptions import ContractValidationError
-from stipul.charter.contract.schema import Contract
 from stipul.chronicle.signing.verifier import verify_chain
 from stipul.seal.verifier import SealVerificationResult, verify_seal
 
@@ -34,14 +33,10 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     )
     parser.add_argument("session_dir", nargs="?")
     parser.add_argument("--session-dir", dest="session_dir_flag")
-    parser.add_argument("--contract")
+    parser.add_argument("--charter")
     parser.add_argument("--public-key")
     parser.add_argument("--json-out")
     parser.set_defaults(handler=run, parser=parser)
-
-
-def _load_contract(path: Path) -> Contract:
-    return load_charter(path).contract
 
 
 def _load_public_key(path: Path) -> Ed25519PublicKey:
@@ -262,7 +257,7 @@ def verify_session(
     contract_path: Path,
     public_key_path: Path,
 ) -> VerificationOutcome:
-    contract = _load_contract(contract_path)
+    contract = load_charter(contract_path).contract
     public_key = _load_public_key(public_key_path)
     events_path = session_dir / "events.jsonl"
     chain_result = verify_chain(events_path, public_key, contract)
@@ -283,13 +278,13 @@ def run(args: argparse.Namespace) -> int:
     try:
         session_dir = _resolve_session_dir(args)
         contract_path = (
-            Path(args.contract)
-            if args.contract is not None
+            Path(args.charter)
+            if args.charter is not None
             else _autodiscovered_input_path(
                 session_dir=session_dir,
                 filename="contract.json",
-                flag_name="--contract",
-                label="contract file",
+                flag_name="--charter",
+                label="charter file",
             )
         )
         public_key_path = (

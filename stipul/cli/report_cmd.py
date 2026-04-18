@@ -508,7 +508,7 @@ def run(args: argparse.Namespace) -> int:
         contract_path = _session_local_input_path(
             session_dir=session_dir,
             filename="contract.json",
-            label="contract file",
+            label="charter file",
         )
         public_key_path = _session_local_input_path(
             session_dir=session_dir,

@@ -96,7 +96,7 @@ def test_gateway_cli_constructs_proxy_and_runs_existing_gateway(monkeypatch, tmp
     monkeypatch.setattr(gateway_cmd.anyio, "run", fake_anyio_run)
 
     args = argparse.Namespace(
-        contract=str(tmp_path / "contract.yaml"),
+        charter=str(tmp_path / "contract.yaml"),
         session_dir=str(tmp_path / "session"),
         session_id="11111111-1111-1111-1111-111111111111",
         control_port=None,
@@ -140,7 +140,7 @@ def test_gateway_cli_requires_runtime_factory_shape(monkeypatch, tmp_path: Path)
     )
 
     args = argparse.Namespace(
-        contract=str(tmp_path / "contract.yaml"),
+        charter=str(tmp_path / "contract.yaml"),
         session_dir=str(tmp_path / "session"),
         session_id="11111111-1111-1111-1111-111111111111",
         control_port=None,
@@ -198,7 +198,7 @@ def test_gateway_cli_optional_control_port_starts_existing_sidecar(monkeypatch, 
     )
 
     args = argparse.Namespace(
-        contract=str(tmp_path / "contract.yaml"),
+        charter=str(tmp_path / "contract.yaml"),
         session_dir=str(tmp_path / "session"),
         session_id="11111111-1111-1111-1111-111111111111",
         control_port=0,

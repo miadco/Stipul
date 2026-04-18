@@ -696,7 +696,7 @@ class ProxyServer:
                 resolved_events_path,
                 session_id,
             )
-            contract = load_contract(contract_path)
+            contract = load_charter(contract_path).contract
             budget_tracker = load_budget_state(state_dir, session_id)
             if budget_tracker is None:
                 budget_tracker = BudgetTracker.from_contract(contract)
@@ -1732,14 +1732,9 @@ class ProxyServer:
         )
 
 
-def load_contract(contract_path: str | Path) -> Contract:
-    """Load and validate a contract file once at startup."""
-    return load_charter(contract_path).contract
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Stipul MCP Proxy")
-    parser.add_argument("--contract", required=True, help="Path to Charter policy file")
+    parser.add_argument("--charter", required=True, help="Path to Charter policy file")
     parser.add_argument("--passthrough", action="store_true", help="Disable enforcement")
     parser.add_argument("--interactive", action="store_true", help="Enable approval prompts")
     parser.add_argument(
@@ -1760,7 +1755,7 @@ def main(argv: list[str] | None = None) -> ProxyServer:
     args = parser.parse_args(argv)
 
     return ProxyServer.from_contract_path(
-        args.contract,
+        args.charter,
         session_id="session-1",
         passthrough=args.passthrough,
         interactive=args.interactive,

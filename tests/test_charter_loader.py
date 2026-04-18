@@ -7,15 +7,14 @@ import yaml
 
 from stipul.charter.contract.loader import load_charter
 from stipul.writ.proxy.server import ProxyServer
-from stipul.writ.proxy.server import load_contract
 
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
 def test_load_charter_yaml_matches_json_fixture() -> None:
-    loaded_yaml = load_charter(FIXTURES_DIR / "base_contract.yaml")
-    loaded_json = load_charter(FIXTURES_DIR / "base_contract.json")
+    loaded_yaml = load_charter(FIXTURES_DIR / "base_charter.yaml")
+    loaded_json = load_charter(FIXTURES_DIR / "base_charter.json")
 
     assert loaded_yaml.payload["schema_version"] == "1.0"
     assert loaded_yaml.contract.to_canonical_dict() == loaded_json.contract.to_canonical_dict()
@@ -29,8 +28,8 @@ def test_load_charter_invalid_yaml_raises_value_error(tmp_path: Path) -> None:
         load_charter(path)
 
 
-def test_proxy_load_contract_supports_yaml() -> None:
-    contract = load_contract(FIXTURES_DIR / "base_contract.yaml")
+def test_proxy_load_charter_supports_yaml() -> None:
+    contract = load_charter(FIXTURES_DIR / "base_charter.yaml").contract
 
     assert contract.identity_agent_id == "agent.alpha"
     assert "filesystem.write" in contract.allowed_tools
@@ -38,7 +37,7 @@ def test_proxy_load_contract_supports_yaml() -> None:
 
 def test_proxy_from_contract_path_supports_yaml(tmp_path: Path) -> None:
     proxy = ProxyServer.from_contract_path(
-        FIXTURES_DIR / "base_contract.yaml",
+        FIXTURES_DIR / "base_charter.yaml",
         session_id="11111111-1111-1111-1111-111111111111",
         events_path=tmp_path / "events.jsonl",
     )
@@ -56,14 +55,14 @@ def test_proxy_from_contract_path_supports_yaml(tmp_path: Path) -> None:
         ("max_tool_calls", 0),
     ],
 )
-def test_proxy_load_contract_accepts_zero_budget_limits(
+def test_proxy_load_charter_accepts_zero_budget_limits(
     tmp_path: Path, field: str, value: int
 ) -> None:
-    payload = yaml.safe_load((FIXTURES_DIR / "base_contract.yaml").read_text(encoding="utf-8"))
+    payload = yaml.safe_load((FIXTURES_DIR / "base_charter.yaml").read_text(encoding="utf-8"))
     payload[field] = value
     contract_path = tmp_path / f"{field}-zero.yaml"
     contract_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
 
-    contract = load_contract(contract_path)
+    contract = load_charter(contract_path).contract
 
     assert getattr(contract, field) == value

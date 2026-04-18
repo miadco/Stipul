@@ -23,7 +23,7 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     )
     parser.add_argument("--session-dir", required=True)
     parser.add_argument("--out-dir", required=True)
-    parser.add_argument("--contract", required=True)
+    parser.add_argument("--charter", required=True)
     parser.add_argument("--public-key")
     parser.add_argument("--scan-report")
     parser.add_argument("--redact", action="store_true")
@@ -90,7 +90,7 @@ def timestamp_export_bundle_rfc3161(bundle_dir: str | Path, tsa_url: str) -> dic
 def run(args: argparse.Namespace) -> int:
     try:
         session_dir = ensure_session_dir(Path(args.session_dir))
-        loaded = load_charter(Path(args.contract))
+        loaded = load_charter(Path(args.charter))
         contract = loaded.contract
         public_key_path = Path(args.public_key) if args.public_key else None
         scan_report_path = Path(args.scan_report) if args.scan_report else None
