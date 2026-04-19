@@ -82,6 +82,20 @@ def lint_contract_payload(payload: dict[str, Any], contract: Contract) -> Contra
                 )
             )
 
+    if allowed_tools and never_allow_tools:
+        overlapping_tools = sorted(set(allowed_tools) & set(never_allow_tools))
+        if overlapping_tools:
+            issues.append(
+                LintIssue(
+                    severity="ERROR",
+                    code="conflicting_tool_policy",
+                    message=(
+                        "Tool(s) in both allowed_tools and never_allow_tools: "
+                        f"{overlapping_tools}"
+                    ),
+                )
+            )
+
     if contract.never_allow_tools:
         issues.append(
             LintIssue(
