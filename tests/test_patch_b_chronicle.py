@@ -6,6 +6,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
 from cryptography.hazmat.primitives import serialization
 
 from stipul.charter.contract.schema import Contract
@@ -14,6 +15,7 @@ from stipul.chronicle.events.logger import EventLogger
 from stipul.chronicle.events.store import EventStore
 from stipul.chronicle.signing.keys import generate_keypair
 from stipul.utils.canonical import canonical_json_bytes, compute_prev_hash
+import stipul.writ.proxy.server as proxy_server_module
 from stipul.writ.proxy.server import ProxyServer
 from stipul.writ.proxy.session import SessionState
 
@@ -364,6 +366,70 @@ def test_close_preserves_attestation_missing_outcome_when_seal_omission_log_fail
 
     with caplog.at_level(logging.WARNING):
         assert proxy.close() is None
+
+    events = _read_events(events_path)
+
+    assert [event["event_type"] for event in events] == ["session_open", "session_close"]
+    assert "Failed to record seal omission event in Chronicle" in caplog.text
+    assert not (events_path.parent / "seal.json").exists()
+
+
+def test_close_records_seal_build_failure_in_chronicle(
+    tmp_path: Path,
+    monkeypatch,
+    contract,
+) -> None:
+    events_path = tmp_path / "events.jsonl"
+    proxy = _build_proxy(contract, events_path)
+
+    def fail_build(*_args, **_kwargs):
+        raise ValueError("bad attestation")
+
+    monkeypatch.setattr(proxy_server_module, "build_session_seal", fail_build)
+
+    with pytest.raises(ValueError, match="bad attestation"):
+        proxy.close()
+
+    events = _read_events(events_path)
+    session_close = next(event for event in events if event["event_type"] == "session_close")
+    seal_omitted = events[-1]
+
+    assert session_close["reason"] == "session_closed"
+    assert seal_omitted["event_type"] == "seal_omitted"
+    assert seal_omitted["reason"] == "seal_generation_failed"
+    assert seal_omitted["metadata"] == {
+        "stage": "build",
+        "error_type": "ValueError",
+        "error": "bad attestation",
+    }
+    assert not (events_path.parent / "seal.json").exists()
+
+
+def test_close_logs_warning_when_seal_failure_chronicle_write_fails(
+    tmp_path: Path,
+    monkeypatch,
+    contract,
+    caplog,
+) -> None:
+    events_path = tmp_path / "events.jsonl"
+    proxy = _build_proxy(contract, events_path)
+
+    def fail_build(*_args, **_kwargs):
+        raise ValueError("bad attestation")
+
+    original_append = proxy.event_logger.store.append
+
+    def fail_on_seal_omitted(line: str) -> None:
+        if json.loads(line).get("event_type") == "seal_omitted":
+            raise RuntimeError("chronicle unavailable")
+        original_append(line)
+
+    monkeypatch.setattr(proxy_server_module, "build_session_seal", fail_build)
+    monkeypatch.setattr(proxy.event_logger.store, "append", fail_on_seal_omitted)
+
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(ValueError, match="bad attestation"):
+            proxy.close()
 
     events = _read_events(events_path)
 

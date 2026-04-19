@@ -519,12 +519,33 @@ class ProxyServer:
                             exc_info=exc,
                         )
                 else:
-                    seal = build_session_seal(attestation, self.event_logger.store.path)
-                    seal["signature"] = sign_seal(seal, self.event_logger.signing_key.private_key)
-                    write_seal(
-                        seal_path(self.event_logger.store.path.parent),
-                        seal,
-                    )
+                    try:
+                        stage = "build"
+                        seal = build_session_seal(attestation, self.event_logger.store.path)
+                        stage = "sign"
+                        seal["signature"] = sign_seal(seal, self.event_logger.signing_key.private_key)
+                        stage = "write"
+                        write_seal(
+                            seal_path(self.event_logger.store.path.parent),
+                            seal,
+                        )
+                    except Exception as seal_err:
+                        try:
+                            self._log_lifecycle_event(
+                                event_type="seal_omitted",
+                                reason="seal_generation_failed",
+                                metadata={
+                                    "stage": stage,
+                                    "error_type": type(seal_err).__name__,
+                                    "error": str(seal_err),
+                                },
+                            )
+                        except Exception as exc:
+                            _LOGGER.warning(
+                                "Failed to record seal omission event in Chronicle",
+                                exc_info=exc,
+                            )
+                        raise
                     self._seal_written = True
         except Exception as exc:  # pragma: no cover - exercised through callers
             close_error = exc
