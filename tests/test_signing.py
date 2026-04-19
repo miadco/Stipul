@@ -102,7 +102,7 @@ def test_load_key_missing_sidecar_raises_fatal_message(tmp_path: Path) -> None:
 
     with pytest.raises(
         KeyMetadataError,
-        match=rf"Key metadata missing for key_id `{generated.key_id}`. Re-generate key with `stipul rotate-key`.",
+        match=rf"Key metadata missing for key_id `{generated.key_id}`. Delete the orphaned key file and rerun normal Stipul startup to regenerate the key and metadata.",
     ):
         load_key(generated.key_id, keys_dir)
 

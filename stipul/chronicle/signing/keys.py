@@ -122,7 +122,7 @@ def _load_metadata(keys_dir: Path, key_id: str) -> tuple[str, str]:
     if not metadata_path.exists():
         message = (
             f"Key metadata missing for key_id `{key_id}`. "
-            "Re-generate key with `stipul rotate-key`."
+            "Delete the orphaned key file and rerun normal Stipul startup to regenerate the key and metadata."
         )
         _LOGGER.error(message)
         raise KeyMetadataError(message)
