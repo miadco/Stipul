@@ -77,7 +77,7 @@ class MCPGateway:
 
         @self.server.list_tools()  # type: ignore[no-untyped-call,untyped-decorator]
         async def list_tools() -> list[types.Tool]:
-            return list(self._current_tools())
+            return list(self._charter_visible_tools())
 
         @self.server.call_tool()  # type: ignore[untyped-decorator]
         async def call_tool(tool_name: str, arguments: dict[str, Any]) -> types.CallToolResult:
@@ -93,6 +93,18 @@ class MCPGateway:
         if callable(self.tool_catalog):
             return self.tool_catalog()
         return self.tool_catalog
+
+    def _charter_visible_tools(self) -> Sequence[types.Tool]:
+        allowed_tools = self.proxy.contract.allowed_tools
+        if not allowed_tools:
+            return []
+
+        never_allow_tools = self.proxy.contract.never_allow_tools
+        return [
+            tool
+            for tool in self._current_tools()
+            if tool.name in allowed_tools and tool.name not in never_allow_tools
+        ]
 
     async def run_stdio(self) -> None:
         """Run the gateway over stdio using the MCP SDK transport."""

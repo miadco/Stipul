@@ -50,6 +50,18 @@ def _make_tool(name: str, description: str) -> types.Tool:
     )
 
 
+def _make_contract(
+    base_dict: dict[str, object],
+    *,
+    allowed_tools: list[str],
+    never_allow_tools: list[str],
+) -> Contract:
+    payload = dict(base_dict)
+    payload["allowed_tools"] = allowed_tools
+    payload["never_allow_tools"] = never_allow_tools
+    return Contract.from_dict(payload)
+
+
 def _read_events(path: Path) -> list[dict[str, object]]:
     if not path.exists():
         return []
@@ -72,7 +84,10 @@ def test_mcp_gateway_initialize_and_tools_list_use_caller_catalog(
 ) -> None:
     events_path = tmp_path / "session" / "events.jsonl"
     proxy = _build_proxy(contract, events_path)
-    catalog = [_make_tool("filesystem.write", "Write a file")]
+    catalog = [
+        _make_tool("filesystem.write", "Write a file"),
+        _make_tool("shell.exec", "Run a shell command"),
+    ]
     gateway = proxy.create_mcp_gateway(
         tool_catalog=lambda: catalog,
         execute_tool=lambda _request: {"ok": True},
@@ -99,6 +114,7 @@ def test_mcp_gateway_initialize_and_tools_list_use_caller_catalog(
                     assert [tool.name for tool in listed.tools] == ["filesystem.write"]
 
                     catalog.append(_make_tool("web.search", "Search the web"))
+                    catalog.append(_make_tool("debug.inspect", "Inspect runtime state"))
                     relisted = await session.list_tools()
                     assert [tool.name for tool in relisted.tools] == [
                         "filesystem.write",
@@ -109,6 +125,129 @@ def test_mcp_gateway_initialize_and_tools_list_use_caller_catalog(
 
     try:
         anyio.run(scenario)
+    finally:
+        proxy.close()
+
+
+def test_mcp_gateway_tools_list_filters_mixed_catalog_by_charter(
+    tmp_path: Path,
+    base_dict: dict[str, object],
+) -> None:
+    contract = _make_contract(
+        base_dict,
+        allowed_tools=["web.search"],
+        never_allow_tools=["shell.exec"],
+    )
+    events_path = tmp_path / "session" / "events.jsonl"
+    proxy = _build_proxy(contract, events_path)
+    gateway = proxy.create_mcp_gateway(
+        tool_catalog=[
+            _make_tool("web.search", "Search the web"),
+            _make_tool("shell.exec", "Run a shell command"),
+            _make_tool("filesystem.write", "Write a file"),
+        ],
+        execute_tool=lambda _request: {"ok": True},
+    )
+
+    async def scenario() -> list[str]:
+        async with create_connected_server_and_client_session(gateway.server) as session:
+            listed = await session.list_tools()
+            return [tool.name for tool in listed.tools]
+
+    try:
+        assert anyio.run(scenario) == ["web.search"]
+    finally:
+        proxy.close()
+
+
+def test_mcp_gateway_tools_list_hides_never_allow_tool_when_overlap_exists(
+    tmp_path: Path,
+    base_dict: dict[str, object],
+) -> None:
+    contract = _make_contract(
+        base_dict,
+        allowed_tools=["web.search", "shell.exec"],
+        never_allow_tools=["shell.exec"],
+    )
+    events_path = tmp_path / "session" / "events.jsonl"
+    proxy = _build_proxy(contract, events_path)
+    gateway = proxy.create_mcp_gateway(
+        tool_catalog=[
+            _make_tool("shell.exec", "Run a shell command"),
+            _make_tool("web.search", "Search the web"),
+        ],
+        execute_tool=lambda _request: {"ok": True},
+    )
+
+    async def scenario() -> list[str]:
+        async with create_connected_server_and_client_session(gateway.server) as session:
+            listed = await session.list_tools()
+            return [tool.name for tool in listed.tools]
+
+    try:
+        assert anyio.run(scenario) == ["web.search"]
+    finally:
+        proxy.close()
+
+
+def test_mcp_gateway_tools_list_filters_callable_catalog_after_dynamic_relisting(
+    tmp_path: Path,
+    base_dict: dict[str, object],
+) -> None:
+    contract = _make_contract(
+        base_dict,
+        allowed_tools=["web.search"],
+        never_allow_tools=["shell.exec"],
+    )
+    events_path = tmp_path / "session" / "events.jsonl"
+    proxy = _build_proxy(contract, events_path)
+    catalog = [_make_tool("shell.exec", "Run a shell command")]
+    gateway = proxy.create_mcp_gateway(
+        tool_catalog=lambda: catalog,
+        execute_tool=lambda _request: {"ok": True},
+    )
+
+    async def scenario() -> None:
+        async with create_connected_server_and_client_session(gateway.server) as session:
+            listed = await session.list_tools()
+            assert [tool.name for tool in listed.tools] == []
+
+            catalog.append(_make_tool("web.search", "Search the web"))
+            relisted = await session.list_tools()
+            assert [tool.name for tool in relisted.tools] == ["web.search"]
+
+    try:
+        anyio.run(scenario)
+    finally:
+        proxy.close()
+
+
+def test_mcp_gateway_tools_list_returns_empty_when_allowed_tools_is_empty(
+    tmp_path: Path,
+    base_dict: dict[str, object],
+) -> None:
+    contract = _make_contract(
+        base_dict,
+        allowed_tools=[],
+        never_allow_tools=["shell.exec"],
+    )
+    events_path = tmp_path / "session" / "events.jsonl"
+    proxy = _build_proxy(contract, events_path)
+    gateway = proxy.create_mcp_gateway(
+        tool_catalog=[
+            _make_tool("filesystem.write", "Write a file"),
+            _make_tool("web.search", "Search the web"),
+        ],
+        execute_tool=lambda _request: {"ok": True},
+    )
+
+    async def scenario() -> list[str]:
+        async with create_connected_server_and_client_session(gateway.server) as session:
+            listed = await session.list_tools()
+            return [tool.name for tool in listed.tools]
+
+    try:
+        assert anyio.run(scenario) == []
     finally:
         proxy.close()
 
