@@ -106,6 +106,7 @@ def intercept(raw_request: dict[str, Any], contract: Contract) -> InterceptResul
                 state_raw.get("requesting_agent_id", contract.identity_agent_id)
             ),
             egress_target=state_raw.get("egress_target"),
+            invalid_egress_target=bool(state_raw.get("invalid_egress_target", False)),
             requesting_code_sha256=state_raw.get("requesting_code_sha256"),
         )
     except Exception:

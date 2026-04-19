@@ -109,6 +109,13 @@ def test_egress_not_in_allowlist_returns_deny(contract):
     assert result.rule_triggered == "egress_not_allowed"
 
 
+def test_egress_exact_host_does_not_allow_subdomain(contract):
+    tool = pick_write_tool(contract)
+    result = evaluate(contract, tool, make_state(contract, egress_target="sub.api.example.com"))
+    assert result.decision == "deny"
+    assert result.rule_triggered == "egress_not_allowed"
+
+
 def test_egress_suffix_match_returns_allow(base_dict):
     contract = Contract.from_dict(base_dict)
     suffix_entry = next(entry for entry in contract.egress_allowlist if entry.startswith("."))
@@ -116,6 +123,26 @@ def test_egress_suffix_match_returns_allow(base_dict):
     tool = pick_write_tool(contract)
     result = evaluate(contract, tool, make_state(contract, egress_target=egress_target))
     assert not (result.decision == "deny" and result.rule_triggered == "egress_not_allowed")
+
+
+def test_egress_suffix_does_not_allow_root(base_dict):
+    contract = Contract.from_dict(base_dict)
+    suffix_entry = next(entry for entry in contract.egress_allowlist if entry.startswith("."))
+    tool = pick_write_tool(contract)
+    result = evaluate(contract, tool, make_state(contract, egress_target=suffix_entry[1:]))
+    assert result.decision == "deny"
+    assert result.rule_triggered == "egress_not_allowed"
+
+
+def test_invalid_egress_target_returns_deny(contract):
+    tool = pick_write_tool(contract)
+    result = evaluate(
+        contract,
+        tool,
+        make_state(contract, invalid_egress_target=True),
+    )
+    assert result.decision == "deny"
+    assert result.rule_triggered == "invalid_egress_target"
 
 
 def test_identity_mismatch_returns_deny(contract):

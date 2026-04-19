@@ -12,6 +12,7 @@ from datetime import datetime
 
 from stipul.charter.contract.schema import Contract
 from stipul.models import PolicyDecision, RiskClass
+from stipul.writ.proxy.egress import is_egress_allowed
 
 
 @dataclass
@@ -23,22 +24,12 @@ class RuntimeState:
     current_time: datetime
     requesting_agent_id: str
     egress_target: str | None
+    invalid_egress_target: bool = False
     requesting_code_sha256: str | None = None
 
 
 def _resolve_risk_class(contract: Contract, tool_name: str) -> RiskClass:
     return contract.tool_risk_classes.get(tool_name, RiskClass.write)
-
-
-def _is_egress_allowed(contract: Contract, normalized_egress_target: str) -> bool:
-    for entry in contract.egress_allowlist:
-        normalized_entry = entry.lower().rstrip(".")
-        if normalized_entry.startswith("."):
-            if normalized_egress_target.endswith(normalized_entry):
-                return True
-        elif normalized_egress_target == normalized_entry:
-            return True
-    return False
 
 
 def evaluate(
@@ -107,6 +98,14 @@ def evaluate(
             rule_triggered="not_allowed",
         )
 
+    if state.invalid_egress_target:
+        return PolicyDecision(
+            decision="deny",
+            reason="Egress target is invalid or unparsable",
+            risk_class=risk_class,
+            rule_triggered="invalid_egress_target",
+        )
+
     if state.tool_calls_made >= contract.max_tool_calls:
         return PolicyDecision(
             decision="deny",
@@ -133,12 +132,11 @@ def evaluate(
         )
 
     if state.egress_target is not None:
-        normalized_egress_target = state.egress_target.lower().rstrip(".")
-        if not _is_egress_allowed(contract, normalized_egress_target):
+        if not is_egress_allowed(state.egress_target, contract.egress_allowlist):
             return PolicyDecision(
                 decision="deny",
                 reason=(
-                    f"Egress target '{normalized_egress_target}' "
+                    f"Egress target '{state.egress_target}' "
                     "is not in the allowlist"
                 ),
                 risk_class=risk_class,

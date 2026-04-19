@@ -1,27 +1,43 @@
 from __future__ import annotations
 
-from stipul.writ.proxy.egress import check_egress
+import pytest
+
+from stipul.writ.proxy.egress import is_egress_allowed, normalize_egress_target
 
 
-def test_egress_exact_domain_allowed(contract):
-    allowed, reason = check_egress("api.example.com", contract)
-    assert allowed is True
-    assert reason == "allowed"
+@pytest.mark.parametrize(
+    ("raw_target", "expected"),
+    [
+        ("example.com", "example.com"),
+        ("Example.COM", "example.com"),
+        ("https://api.example.com", "api.example.com"),
+        ("https://example.com:8080/path?q=1#frag", "example.com"),
+        ("example.com:443", "example.com"),
+        ("", None),
+        ("://garbage", None),
+    ],
+)
+def test_normalize_egress_target(raw_target: str, expected: str | None) -> None:
+    assert normalize_egress_target(raw_target) == expected
 
 
-def test_egress_subdomain_of_allowlisted_domain_allowed(contract):
-    allowed, reason = check_egress("sub.api.example.com", contract)
-    assert allowed is True
-    assert reason == "allowed"
-
-
-def test_egress_suffix_entry_allows_subdomain(contract):
-    allowed, reason = check_egress("logs.trusted.example", contract)
-    assert allowed is True
-    assert reason == "allowed"
-
-
-def test_egress_denied_when_not_allowlisted(contract):
-    allowed, reason = check_egress("evil.example.org", contract)
-    assert allowed is False
-    assert reason == "not_in_egress_allowlist"
+@pytest.mark.parametrize(
+    ("allowlist", "target", "expected"),
+    [
+        (["example.com"], "example.com", True),
+        (["example.com"], "api.example.com", False),
+        ([".example.com"], "api.example.com", True),
+        ([".example.com"], "deep.sub.example.com", True),
+        ([".example.com"], "example.com", False),
+        (["example.com"], "example.com.evil.net", False),
+        ([], "example.com", False),
+    ],
+)
+def test_is_egress_allowed_matches_charter_semantics(
+    allowlist: list[str],
+    target: str,
+    expected: bool,
+) -> None:
+    normalized_target = normalize_egress_target(target)
+    assert normalized_target is not None
+    assert is_egress_allowed(normalized_target, allowlist) is expected

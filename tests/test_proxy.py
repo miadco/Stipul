@@ -200,6 +200,139 @@ def test_egress_not_allowlisted_returns_structured_error_and_logs_net_call(
     assert events[1]["tool_input"] is None
 
 
+def test_scheme_prefixed_egress_target_is_normalized_and_allowed(
+    tmp_path: Path, monkeypatch, contract
+) -> None:
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
+    events_path = tmp_path / "events.jsonl"
+    proxy = _build_proxy(contract, events_path)
+
+    called = {"count": 0}
+
+    def forward_call(_request):
+        called["count"] += 1
+        return {"ok": True}
+
+    response = proxy.handle_tool_call(
+        {
+            "tool_name": "filesystem.write",
+            "inputs": {
+                "egress_target": "https://API.EXAMPLE.COM:443/path?q=1#frag",
+                "payload": "x",
+            },
+        },
+        forward_call,
+    )
+
+    assert response == {"ok": True}
+    assert called["count"] == 1
+
+    events = _read_events(events_path)
+    assert len(events) == 2
+    _assert_session_open(events[0], contract)
+    assert events[1]["event_type"] == "tool_call"
+    assert events[1]["decision"] == "allow"
+    assert events[1]["reason"] == "risk_class"
+
+
+def test_exact_host_entry_denies_subdomain_end_to_end(
+    tmp_path: Path, monkeypatch, contract
+) -> None:
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
+    events_path = tmp_path / "events.jsonl"
+    proxy = _build_proxy(contract, events_path)
+
+    response = proxy.handle_tool_call(
+        {
+            "tool_name": "filesystem.write",
+            "inputs": {"egress_target": "sub.api.example.com", "payload": "x"},
+        },
+        lambda _request: {"ok": True},
+    )
+
+    assert response == {
+        "decision": "deny",
+        "reason": "not_in_egress_allowlist",
+        "tool_name": "filesystem.write",
+    }
+
+
+def test_leading_dot_suffix_entry_allows_subdomain_end_to_end(
+    tmp_path: Path, monkeypatch, contract
+) -> None:
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
+    events_path = tmp_path / "events.jsonl"
+    proxy = _build_proxy(contract, events_path)
+
+    called = {"count": 0}
+
+    def forward_call(_request):
+        called["count"] += 1
+        return {"ok": True}
+
+    response = proxy.handle_tool_call(
+        {
+            "tool_name": "filesystem.write",
+            "inputs": {"egress_target": "logs.trusted.example", "payload": "x"},
+        },
+        forward_call,
+    )
+
+    assert response == {"ok": True}
+    assert called["count"] == 1
+
+
+def test_leading_dot_suffix_entry_denies_root_end_to_end(
+    tmp_path: Path, monkeypatch, contract
+) -> None:
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
+    events_path = tmp_path / "events.jsonl"
+    proxy = _build_proxy(contract, events_path)
+
+    response = proxy.handle_tool_call(
+        {
+            "tool_name": "filesystem.write",
+            "inputs": {"egress_target": "trusted.example", "payload": "x"},
+        },
+        lambda _request: {"ok": True},
+    )
+
+    assert response == {
+        "decision": "deny",
+        "reason": "not_in_egress_allowlist",
+        "tool_name": "filesystem.write",
+    }
+
+
+def test_invalid_egress_target_denies_with_invalid_reason(
+    tmp_path: Path, monkeypatch, contract
+) -> None:
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
+    events_path = tmp_path / "events.jsonl"
+    proxy = _build_proxy(contract, events_path)
+
+    response = proxy.handle_tool_call(
+        {
+            "tool_name": "filesystem.write",
+            "inputs": {"egress_target": "://garbage", "payload": "x"},
+        },
+        lambda _request: {"ok": True},
+    )
+
+    assert response == {
+        "decision": "deny",
+        "reason": "invalid_egress_target",
+        "tool_name": "filesystem.write",
+    }
+
+    events = _read_events(events_path)
+    assert len(events) == 2
+    _assert_session_open(events[0], contract)
+    assert events[1]["event_type"] == "net_call"
+    assert events[1]["decision"] == "deny"
+    assert events[1]["reason"] == "invalid_egress_target"
+
+
 def test_require_approval_in_headless_mode_returns_approval_required(
     tmp_path: Path, monkeypatch, base_dict
 ):

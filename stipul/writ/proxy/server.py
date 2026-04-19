@@ -46,7 +46,7 @@ from stipul.writ.proxy.approval_state import (
     save_approval_state,
 )
 from stipul.writ.proxy.circuit_breaker import CircuitBreaker
-from stipul.writ.proxy.egress import check_egress
+from stipul.writ.proxy.egress import normalize_egress_target
 from stipul.writ.proxy.interceptor import InterceptResult, intercept
 from stipul.writ.proxy.operator_state import OperatorState, OperatorStateError
 from stipul.writ.proxy.operator_state import load_operator_state, save_operator_state
@@ -229,13 +229,24 @@ def _permit_from_dict(payload: Mapping[str, Any] | None) -> ExceptionPermit | No
         return None
 
 
-def _extract_egress_target(raw_request: Mapping[str, Any]) -> str | None:
+def _extract_raw_egress_target(raw_request: Mapping[str, Any]) -> str | None:
     inputs = _safe_inputs(raw_request)
     if isinstance(inputs, dict):
         target = inputs.get("egress_target")
         if isinstance(target, str) and target:
             return target
     return None
+
+
+def _extract_egress_target(raw_request: Mapping[str, Any]) -> tuple[str | None, bool]:
+    raw_target = _extract_raw_egress_target(raw_request)
+    if raw_target is None:
+        return None, False
+
+    normalized_target = normalize_egress_target(raw_target)
+    if normalized_target is None:
+        return None, True
+    return normalized_target, False
 
 
 def _merge_headers(raw_request: Mapping[str, Any], token: str) -> dict[str, Any]:
@@ -1245,7 +1256,7 @@ class ProxyServer:
         *,
         requesting_agent_id: str | None = None,
     ) -> dict[str, Any]:
-        egress_target = _extract_egress_target(raw_request)
+        egress_target, invalid_egress_target = _extract_egress_target(raw_request)
         current_time = _now_iso_utc()
         state = {
             "tool_calls_made": self._tool_calls_made,
@@ -1254,6 +1265,7 @@ class ProxyServer:
             "requesting_agent_id": requesting_agent_id or self._agent_id,
             "requesting_code_sha256": self.requesting_code_sha256,
             "egress_target": egress_target,
+            "invalid_egress_target": invalid_egress_target,
         }
         return {**dict(raw_request), "state": state}
 
@@ -1397,7 +1409,7 @@ class ProxyServer:
         tool_name = _safe_tool_name(raw_request)
         input_hash = _input_hash(raw_request)
         tool_input = _tool_input(raw_request)
-        egress_target = _extract_egress_target(raw_request)
+        egress_target, _ = _extract_egress_target(raw_request)
         risk_hint = self.contract.tool_risk_classes.get(tool_name)
         risk_hint_wire = _risk_to_wire(risk_hint.value if risk_hint else "write")
         request_metadata = _request_metadata(raw_request)
@@ -1683,7 +1695,11 @@ class ProxyServer:
             return _structured_error("proxy_degraded", tool_name)
 
         if result.decision == "deny":
-            event_type = "net_call" if result.reason == "not_in_egress_allowlist" else "tool_call"
+            event_type = (
+                "net_call"
+                if result.reason in {"not_in_egress_allowlist", "invalid_egress_target"}
+                else "tool_call"
+            )
             self._log_decision(
                 event_type=event_type,
                 tool_name=result.tool_name,
@@ -1742,20 +1758,6 @@ class ProxyServer:
                 metadata=approval_metadata,
             )
             return _structured_error("approval_required", result.tool_name)
-
-        if egress_target is not None:
-            egress_allowed, egress_reason = check_egress(egress_target, self.contract)
-            if not egress_allowed:
-                self._log_decision(
-                    event_type="net_call",
-                    tool_name=result.tool_name,
-                    risk_class=result.risk_class,
-                    decision="deny",
-                    reason=egress_reason,
-                    input_hash=result.input_hash,
-                    metadata=request_metadata,
-                )
-                return _structured_error(egress_reason, result.tool_name)
 
         return self._forward_allowed_tool_call(
             raw_request,
