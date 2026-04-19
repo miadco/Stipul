@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -291,6 +292,84 @@ def test_close_seals_from_terminal_session_close_event(
     assert seal["terminal_sequence_id"] == terminal_event["sequence_id"]
     assert seal["terminal_timestamp"] == terminal_event["timestamp"]
     assert seal["terminal_event_hash"] == compute_prev_hash(terminal_event)
+
+
+def test_close_logs_seal_omitted_when_terminal_attestation_is_missing(
+    tmp_path: Path,
+    monkeypatch,
+    contract,
+) -> None:
+    events_path = tmp_path / "events.jsonl"
+    proxy = _build_proxy(contract, events_path)
+    monkeypatch.setattr(proxy, "_terminal_attestation", lambda: None)
+
+    proxy.close()
+
+    events = _read_events(events_path)
+    seal_omitted = events[-1]
+
+    assert [event["event_type"] for event in events] == [
+        "session_open",
+        "session_close",
+        "seal_omitted",
+    ]
+    assert seal_omitted["reason"] == "terminal_attestation_missing"
+    _assert_lifecycle_nulls(seal_omitted, metadata_is_null=False)
+    assert seal_omitted["metadata"] == {
+        "seal_generation_skipped": True,
+        "omission_reason": "terminal_attestation_missing",
+    }
+    assert not (events_path.parent / "seal.json").exists()
+
+
+def test_close_with_valid_attestation_does_not_record_seal_omitted(
+    tmp_path: Path,
+    monkeypatch,
+    contract,
+) -> None:
+    monkeypatch.setenv("STIPUL_TOKEN_SECRET", "test-secret")
+    events_path = tmp_path / "events.jsonl"
+    proxy = _build_proxy(contract, events_path)
+
+    proxy.handle_tool_call(
+        {"tool_name": "filesystem.write", "inputs": {"path": "/tmp/test", "content": "hello"}},
+        lambda _request: {"ok": True},
+    )
+    proxy.close()
+
+    events = _read_events(events_path)
+
+    assert all(event["event_type"] != "seal_omitted" for event in events)
+    assert (events_path.parent / "seal.json").exists()
+
+
+def test_close_preserves_attestation_missing_outcome_when_seal_omission_log_fails(
+    tmp_path: Path,
+    monkeypatch,
+    contract,
+    caplog,
+) -> None:
+    events_path = tmp_path / "events.jsonl"
+    proxy = _build_proxy(contract, events_path)
+    monkeypatch.setattr(proxy, "_terminal_attestation", lambda: None)
+
+    original_log_event = proxy.event_logger.log_event
+
+    def fail_on_seal_omitted(event_kwargs: dict[str, object]):
+        if event_kwargs.get("event_type") == "seal_omitted":
+            raise RuntimeError("chronicle unavailable")
+        return original_log_event(event_kwargs)
+
+    monkeypatch.setattr(proxy.event_logger, "log_event", fail_on_seal_omitted)
+
+    with caplog.at_level(logging.WARNING):
+        assert proxy.close() is None
+
+    events = _read_events(events_path)
+
+    assert [event["event_type"] for event in events] == ["session_open", "session_close"]
+    assert "Failed to record seal omission event in Chronicle" in caplog.text
+    assert not (events_path.parent / "seal.json").exists()
 
 
 def test_same_session_rehydration_keeps_single_session_open_and_single_session_close(

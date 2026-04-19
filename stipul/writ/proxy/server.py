@@ -313,6 +313,24 @@ def _last_parseable_event(events_path: Path) -> dict[str, Any] | None:
     return last_event
 
 
+def _last_parseable_event_of_type(events_path: Path, event_type: str) -> dict[str, Any] | None:
+    last_event: dict[str, Any] | None = None
+    if not events_path.exists():
+        return None
+    with events_path.open("r", encoding="utf-8") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(payload, dict) and payload.get("event_type") == event_type:
+                last_event = payload
+    return last_event
+
+
 def _attestation_from_event(event: Mapping[str, Any] | None) -> dict[str, Any] | None:
     if not isinstance(event, Mapping):
         return None
@@ -474,7 +492,22 @@ class ProxyServer:
             self._ensure_session_closed()
             if not self._seal_written:
                 attestation = self._terminal_attestation()
-                if attestation is not None:
+                if attestation is None:
+                    try:
+                        self._log_lifecycle_event(
+                            event_type="seal_omitted",
+                            reason="terminal_attestation_missing",
+                            metadata={
+                                "seal_generation_skipped": True,
+                                "omission_reason": "terminal_attestation_missing",
+                            },
+                        )
+                    except Exception as exc:
+                        _LOGGER.warning(
+                            "Failed to record seal omission event in Chronicle",
+                            exc_info=exc,
+                        )
+                else:
                     seal = build_session_seal(attestation, self.event_logger.store.path)
                     seal["signature"] = sign_seal(seal, self.event_logger.signing_key.private_key)
                     write_seal(
@@ -494,15 +527,21 @@ class ProxyServer:
 
     def _sync_session_close_state(self) -> dict[str, Any] | None:
         last_event = _last_parseable_event(self.event_logger.store.path)
-        self._session_close_written = (
-            isinstance(last_event, dict) and last_event.get("event_type") == "session_close"
-        )
+        session_close_event: dict[str, Any] | None = None
+        if isinstance(last_event, dict) and last_event.get("event_type") == "session_close":
+            session_close_event = last_event
+        elif isinstance(last_event, dict) and last_event.get("event_type") == "seal_omitted":
+            session_close_event = _last_parseable_event_of_type(
+                self.event_logger.store.path,
+                "session_close",
+            )
+        self._session_close_written = session_close_event is not None
         self._session_state.closed = self._session_close_written
         if self._session_close_written and seal_path(self.event_logger.store.path.parent).exists():
             self._seal_written = True
         else:
             self._seal_written = False
-        return last_event
+        return session_close_event or last_event
 
     def _terminal_attestation(self) -> dict[str, Any] | None:
         attestation = self.event_logger.last_attestation

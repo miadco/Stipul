@@ -29,7 +29,8 @@ _EVENT_HASH_EXCLUDED_FIELDS = frozenset(
         "agent_identity",
     }
 )
-_LIFECYCLE_EVENT_TYPES = frozenset({"session_open", "session_close"})
+_LIFECYCLE_EVENT_TYPES = frozenset({"session_open", "session_close", "seal_omitted"})
+_NON_ATTESTING_EVENT_TYPES = frozenset({"seal_omitted"})
 _LIFECYCLE_NULL_FIELDS = frozenset(
     {
         "tool_name",
@@ -316,24 +317,25 @@ class EventLogger:
             self._sequence_id = expected_sequence
             self._last_event_timestamp = event.timestamp
             self._last_event_hash = chain_hash
-            self._last_attestation = {
-                "kind": "chronicle_attestation",
-                "event_hash": chain_hash,
-                "sequence_id": event.sequence_id,
-                "timestamp": event.timestamp,
-                "session_id": event.session_id,
-                "event_type": event.event_type,
-                "tool_name": event.tool_name,
-                "decision": event.decision,
-                "reason": event.reason,
-                "contract_id": event.contract_id,
-                "contract_hash": event.contract_hash,
-                "prev_hash": event.prev_hash,
-                "signature": event.signature,
-                "key_id": event.key_id,
-                "algorithm": event.algorithm,
-                "key_created_at": event.key_created_at,
-            }
+            if event.event_type not in _NON_ATTESTING_EVENT_TYPES:
+                self._last_attestation = {
+                    "kind": "chronicle_attestation",
+                    "event_hash": chain_hash,
+                    "sequence_id": event.sequence_id,
+                    "timestamp": event.timestamp,
+                    "session_id": event.session_id,
+                    "event_type": event.event_type,
+                    "tool_name": event.tool_name,
+                    "decision": event.decision,
+                    "reason": event.reason,
+                    "contract_id": event.contract_id,
+                    "contract_hash": event.contract_hash,
+                    "prev_hash": event.prev_hash,
+                    "signature": event.signature,
+                    "key_id": event.key_id,
+                    "algorithm": event.algorithm,
+                    "key_created_at": event.key_created_at,
+                }
             if "prev_unsigned_terminal_hash" in event_dict:
                 self._pending_prev_unsigned_terminal_hash = None
             return event

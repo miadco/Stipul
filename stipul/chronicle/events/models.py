@@ -18,8 +18,9 @@ _ALLOWED_EVENT_TYPES = {
     "budget_anomaly",
     "session_open",
     "session_close",
+    "seal_omitted",
 }
-_LIFECYCLE_EVENT_TYPES = {"session_open", "session_close"}
+_LIFECYCLE_EVENT_TYPES = {"session_open", "session_close", "seal_omitted"}
 _ALLOWED_RISK_CLASSES = {"read", "write", "irreversible", "exfil-risk"}
 _ALLOWED_DECISIONS = {"allow", "deny", "require_approval"}
 _HEX64_RE = re.compile(r"^[0-9a-fA-F]{64}$")
