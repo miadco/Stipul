@@ -53,6 +53,24 @@ def test_exporter_manifest_hashes_match_files(tmp_path: Path) -> None:
         assert digest == __import__("hashlib").sha256(path.read_bytes()).hexdigest()
 
 
+def test_exporter_writes_trust_boundaries_with_supplied_charter_wording(tmp_path: Path) -> None:
+    artifacts = create_signed_session(tmp_path, include_decisions=True, include_summary=True)
+    out_dir = tmp_path / "bundle"
+
+    export_session_bundle(
+        artifacts.session_dir,
+        out_dir,
+        contract=artifacts.contract,
+        public_key_path=artifacts.keypair.public_key_path,
+    )
+
+    trust_boundaries = json.loads((out_dir / "trust_boundaries.json").read_text(encoding="utf-8"))
+    proxy_proves = trust_boundaries["proxy_proves"]
+
+    assert "Tool calls routed through the MCP Proxy were evaluated against the supplied charter." in proxy_proves
+    assert all("signed charter" not in item for item in proxy_proves)
+
+
 def test_exporter_is_deterministic_across_repeated_runs(tmp_path: Path) -> None:
     artifacts = create_signed_session(tmp_path, include_decisions=True, include_summary=True)
     out_dir_a = tmp_path / "bundle_a"

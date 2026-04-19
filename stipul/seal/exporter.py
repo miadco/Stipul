@@ -33,7 +33,7 @@ _KNOWN_BUNDLE_FILES = {
 
 TRUST_BOUNDARIES = {
     "proxy_proves": [
-        "Tool calls routed through the MCP Proxy were evaluated against the supplied signed charter.",
+        "Tool calls routed through the MCP Proxy were evaluated against the supplied charter.",
         "events.jsonl is the authoritative stream for proxy-observed tool and network decisions.",
     ],
     "cannot_prove": [

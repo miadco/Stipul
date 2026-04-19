@@ -419,6 +419,30 @@ def test_build_summary_attestations_gap_detected_behavior(
     assert any("No unmanaged credential use" in item for item in summary_no_gap.attestations)
 
 
+def test_build_summary_attestations_use_supplied_charter_wording(
+    make_test_events: Callable[[list[dict[str, Any]]], Path],
+    contract,
+) -> None:
+    events_path = make_test_events([{"event_type": "tool_call"}])
+
+    summary = build_summary(
+        events_path,
+        contract,
+        session_id="session-123",
+        session_start=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        session_end=datetime(2026, 1, 1, 0, 1, tzinfo=timezone.utc),
+        chain_result=_Chain(status="INTACT"),
+        budget_consumed={"tool_calls": 1.0, "net_calls": 0.0},
+    )
+
+    assert any(
+        item
+        == f"All tool calls routed through the MCP Proxy were evaluated against supplied charter {contract.contract_id}."
+        for item in summary.attestations
+    )
+    assert all("signed charter" not in item for item in summary.attestations)
+
+
 def test_summary_to_event_format_and_no_reserved_fields(
     make_test_events: Callable[[list[dict[str, Any]]], Path],
     contract,

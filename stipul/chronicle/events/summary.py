@@ -244,7 +244,7 @@ def build_summary(
         exhaustion_timestamp = None
 
     attestations = [
-        f"All tool calls routed through the MCP Proxy were evaluated against signed charter {contract.contract_id}.",
+        f"All tool calls routed through the MCP Proxy were evaluated against supplied charter {contract.contract_id}.",
         "This summary is derived from events.jsonl. events.jsonl is the authoritative stream.",
     ]
     if gap_detected_sequence_ids:
