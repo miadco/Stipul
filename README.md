@@ -16,7 +16,7 @@ AI agents are moving from chat into execution. They read files, call APIs, run s
 
 Ordinary logging was not built to prove runtime enforcement. Logs can be edited, policy intent can drift from runtime behavior, and when something goes wrong — a leaked secret, an unauthorized deletion, a compliance violation — teams are left arguing over records instead of verifying them.
 
-That gap is the problem Stipul exists to close. Not just governance — admissible evidence of what your agents did.
+That gap is the problem Stipul exists to close. Not just governance — independently verifiable evidence of what your agents did.
 
 ## When you need this
 
@@ -31,6 +31,8 @@ If the answer to "can you prove it?" is "trust me" — you need Stipul.
 You define policy in a **Charter**: what tools an agent can use, what is forbidden, where it may send traffic, and how much it may do. The Charter is declarative, version-controlled, and not overridable at runtime.
 
 **Writ** enforces that Charter at the tool execution boundary. Every tool call is intercepted and evaluated against policy *before* it runs — not observed after the fact.
+
+**Writ** enforces the **Charter**, records every decision in the **Chronicle**, and produces a cryptographic **Seal**.
 
 Every enforcement decision is recorded in the **Chronicle**, a tamper-evident `events.jsonl` chain where each entry is linked to the previous one. Alterations are detectable because the chain no longer verifies.
 
@@ -48,20 +50,20 @@ Policy → enforcement → evidence → proof.
 
 **Cryptographic attestation, not dashboard screenshots.** The Seal is a verifiable proof artifact, not a visual summary. It either checks out or it doesn't.
 
-Other tools make agents governable. Stipul makes agent actions *admissible*.
+Other tools make agents governable. Stipul makes agent actions independently verifiable.
 
 ## See it work
 
-Install from PyPI (Python 3.10+):
+Install Stipul as a CLI app with pipx (Python 3.10+):
 
-```
-pip install stipul
+```bash
+pipx install stipul
 stipul demo proof
 ```
 
-The demo runs offline against a packaged Charter — no external dependencies, no framework integration required.
+The demo runs offline against a packaged Charter — no external dependencies, no framework integration required. It simulates an AI agent requesting tool access under a Stipul Charter, then shows what was allowed, denied, recorded, and sealed. The demo prints the exact verify and tamper commands. Copy and paste them in order.
 
-```
+```text
 ═══ Stipul Proof Demo ═══
 
 Session: <session-id>
@@ -90,6 +92,12 @@ Step 2 — Verify the session as-is:
 
   stipul verify <session-dir>
 
+Expected clean verification:
+
+  Trust: VERIFIED
+  Chain: INTACT
+  Seal: VALID
+
 Step 3 — Now tamper with the seal:
 
   sed -i 's/"terminal_sequence_id": 5/"terminal_sequence_id": 999/' <session-dir>/seal.json
@@ -102,10 +110,16 @@ Step 4 — Re-verify the session:
 
   stipul verify <session-dir>
 
+Expected post-tamper verification:
+
+  Trust: REJECTED
+  Chain: INTACT
+  Seal: INVALID
+
 Proof complete: enforcement decisions recorded, chained, and sealed.
 ```
 
-For the complete tamper challenge walkthrough, verification receipts, and plain-language reports, see the [demo documentation](demo/).
+For real agent attach paths, see the integration quickstarts below.
 
 ## Integrations
 

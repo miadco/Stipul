@@ -9,7 +9,7 @@ Let Claude inspect your codebase. Block writes and shell commands. Verify the se
 ## Step 1 — Install Stipul
 
 ```bash
-pip install stipul
+pipx install stipul
 ```
 
 ## Step 2 — Prove the packaged path first
