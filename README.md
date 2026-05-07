@@ -4,6 +4,8 @@
 
 Prompts are not policy. Logs are not governance. The boundary is the tool call.
 
+[![CI](https://github.com/miadco/stipul/actions/workflows/ci.yml/badge.svg)](https://github.com/miadco/stipul/actions/workflows/ci.yml)
+
 Stipul is an agent authorization and audit platform for tool-using AI systems. It enforces policy on agent actions before execution, records every decision in the Chronicle, and verifies the evidence with a cryptographic Seal.
 
 A prompt is instruction. A Charter is policy.
