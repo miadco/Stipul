@@ -1,6 +1,8 @@
-# Stipul Quickstart — Claude Code in Read-Only Review Mode
+# Claude Code Quickstart: Govern Claude Before Tool Execution
 
-Let Claude inspect your codebase. Block writes and shell commands. Verify the session stayed read-only with a sealed receipt.
+An agent reviews your code. Then it asks for authority that could expose secrets. Stipul allows normal work, denies risky tool use before execution, records the decision, and verifies the session afterward.
+
+Claude reviews local project files under Stipul control. **Writ** enforces the **Charter** before tool execution, the **Chronicle** records every allow and deny decision, and the **Seal** verifies the session afterward.
 
 **What you'll need:** Python 3.10+, Claude Code installed.
 
@@ -40,13 +42,28 @@ export STIPUL_TOKEN_SECRET=$(openssl rand -hex 32)
 ## Step 5 — Create sample files
 
 ```bash
-printf 'hello\n' > review-1.txt
-printf 'world\n' > review-2.txt
+cat > review-1.txt << 'EOF'
+Release note draft:
+- Add structured denial reasons to the tool audit log.
+- Follow-up: confirm the reviewer can still inspect files after a denied action.
+
+Pseudo code:
+if decision == "deny":
+    record_reason()
+    continue_review = true
+EOF
+
+cat > review-2.txt << 'EOF'
+Remediation note:
+- Keep shell execution blocked for review sessions.
+- Continue allowing local file reads needed for code review.
+- Verify the sealed session after the review completes.
+EOF
 ```
 
 ## Step 6 — Create the charter
 
-This charter puts Claude Code in read-only mode. `filesystem.read` is the only permitted tool. Both `filesystem.write` and `shell.exec` are unconditionally denied. The agent can inspect files but cannot modify them or execute commands.
+This Charter lets Claude review local files while denying higher-risk authority. `filesystem.read` is the only permitted tool. Both `filesystem.write` and `shell.exec` are unconditionally denied. Claude can inspect project files, but **Writ** will block command execution before it runs.
 
 ```bash
 cat > charter.yaml << 'EOF'
@@ -75,7 +92,7 @@ EOF
 
 ## Step 7 — Create the MCP configuration
 
-This tells Claude Code to route tool calls through Stipul's gateway. Every decision — allow or deny — is recorded in `./stipul-session/`.
+This tells Claude Code to route tool calls through Stipul's gateway. Every decision — allow or deny — is recorded in `./stipul-session/` for the **Chronicle**, then sealed when the session closes.
 
 ```bash
 cat > .mcp.json << 'EOF'
@@ -111,14 +128,22 @@ claude
 
 Send these three prompts in order:
 
-**Prompt 1** — read a file (expect: allowed):
-> Use the filesystem.read tool to read ./review-1.txt
+**Prompt 1** — ALLOW:
+> Read review-1.txt and summarize what you find.
 
-**Prompt 2** — run a command (expect: denied):
-> Use the shell.exec tool to run ls
+Expected outcome: Claude requests a local file read. **Writ** allows it under the Charter.
 
-**Prompt 3** — read another file (expect: allowed):
-> Use the filesystem.read tool to read ./review-2.txt
+**Prompt 2** — DENY:
+> Check whether any secrets or API keys are exposed in the local environment by inspecting environment variables.
+
+Expected outcome: Claude should request shell execution to inspect the local environment. **Writ** denies `shell.exec` under the Charter before execution.
+
+If Claude does not request shell execution, use this more explicit prompt: Check whether any secrets or API keys are exposed in the local environment by running a command such as printenv.
+
+**Prompt 3** — ALLOW:
+> Read review-2.txt and summarize what you find.
+
+Expected outcome: Claude requests another local file read. **Writ** allows it, showing that a denial does not end the session.
 
 A deny does not end the session. Claude can continue using permitted tools afterward.
 
@@ -150,13 +175,9 @@ The session stayed read-only, and Stipul can prove it. Every tool call decision 
 
 ---
 
-## Enforcement boundaries
+## Inspect the Chronicle
 
-Stipul governs tools mounted through its MCP gateway. Claude Code may also have built-in tools outside that surface. A deny from Stipul applies to the governed MCP path, not necessarily to every native capability in the host.
-
-## Optional — Inspect the Chronicle
-
-The verify receipt tells you the session evidence is intact. The Chronicle shows what that evidence contains.
+The verify receipt tells you the session evidence is intact. The **Chronicle** shows the evidence record itself: Claude was allowed to read approved files, denied shell authority before execution, and then continued operating within policy.
 
 ```bash
 jq . ./stipul-session/events.jsonl
@@ -168,7 +189,11 @@ You'll see one event per line, including session lifecycle events and each tool-
 * `shell.exec` → denied
 * `filesystem.read` → allowed
 
-Each event is timestamped and sequenced, so "read-only" is not just a claim — it is an itemized record.
+Each event is timestamped and sequenced, so the session is not just a claim of control. It is an itemized record of what Claude was allowed to do, what it was denied, and how the review continued afterward.
+
+## Enforcement boundaries
+
+Stipul governs tools mounted through its MCP gateway. Claude Code may also have built-in tools outside that surface. A deny from Stipul applies to the governed MCP path, not necessarily to every native capability in the host.
 
 ## Troubleshooting
 
