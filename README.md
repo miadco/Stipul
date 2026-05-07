@@ -4,11 +4,7 @@
 
 Prompts are not policy. Logs are not governance. The boundary is the tool call.
 
-Stipul is an agent authorization and audit platform for tool-using AI systems. It enforces agent actions before execution, records every decision in the Chronicle, and verifies the evidence with a cryptographic Seal.
-
-AI agents are moving from conversation into action. They read files, call APIs, run commands, trigger workflows, and operate through tools. That means they are not just generating text. They are exercising authority.
-
-Stipul governs that authority at runtime.
+Stipul is an agent authorization and audit platform for tool-using AI systems. It enforces policy on agent actions before execution, records every decision in the Chronicle, and verifies the evidence with a cryptographic Seal.
 
 A prompt is instruction. A Charter is policy.
 
@@ -24,17 +20,21 @@ A hash detects tampering. A Seal proves integrity.
 
 ---
 
-## When you need this
+## Why you need this
 
-A coding agent can run locally and still have dangerous authority over files, shell, secrets, and repositories. You need policy boundaries before it modifies code, runs commands, or touches credentials.
+A coding agent can modify files, run commands, inspect secrets, and change repositories. You need policy boundaries before tool access becomes system change.
 
-A support or research agent can read files and call tools. You need enforceable boundaries and verifiable evidence for what was allowed, denied, recorded, and sealed.
+A support, research, or operations agent can read data and call tools across real workflows. You need enforceable boundaries and verifiable evidence for what was allowed, denied, recorded, and sealed.
 
-A local model reduces provider exposure, but it does not solve local authority. The boundary is still the tool call.
+A local model reduces provider exposure, but it does not constrain local authority. The model may be local, but the tool call can still affect real files, credentials, services, and systems.
 
-If the answer is "trust me," you need Stipul.
+When an agent can act through tools, its authority needs control before execution and proof after.
+
 
 ## How Stipul works
+
+
+Writ enforces the Charter, records every decision in the Chronicle, and produces a cryptographic Seal.
 
 A Charter defines policy: allowed tools, forbidden tools, egress boundaries, and limits.
 
@@ -42,19 +42,21 @@ Writ enforces the Charter before action. Every tool call is evaluated before exe
 
 The Chronicle records decisions in the authoritative `events.jsonl` evidence source.
 
-Verification checks the evidence against the Seal and rejects records that no longer verify.
+Seal verification checks the evidence record and rejects it if integrity fails.
 
-Writ enforces the Charter, records every decision in the Chronicle, and produces a cryptographic Seal.
 
 ## What makes Stipul different
 
-**Authority is checked before execution.** Writ evaluates tool calls before they run, so denied actions do not become cleanup work.
 
-**Policy is least-privilege by Charter.** The Charter defines what tools, targets, and actions are allowed instead of relying on prompt wording.
+**Agent control follows Zero Trust principles.** Stipul does not assume an agent should be trusted because it is local, approved, or useful. Every tool call still has to pass the Charter.
+
+**Policy defaults to least-privilege.** The Charter defines what tools, targets, and actions are allowed instead of relying on prompt wording.
+
+**Authority is checked before execution.** Writ evaluates tool calls before they run, so denied actions do not become cleanup work.
 
 **Decisions become Chronicle evidence.** Allowed and denied actions are recorded as decision evidence in `events.jsonl`.
 
-**Integrity is verified by Seal.** The Seal lets the proof demo confirm evidence integrity and reject tampered records.
+**Integrity is verified by the Seal.** The Seal lets any verifier confirm evidence integrity and reject tampered records.
 
 ## See it work
 
@@ -65,7 +67,7 @@ pipx install stipul
 stipul demo proof
 ```
 
-`stipul demo proof` runs a real enforcement session against the packaged demo Charter. One tool is allowed, one is denied by egress policy, and one is denied by a never-allow rule. The session is sealed, verification confirms that the evidence still verifies, and tampering causes Stipul to reject trust.
+`stipul demo proof` runs a real enforcement session against the packaged demo Charter. One tool is allowed, one is denied by egress policy, and one is denied by a never-allow rule. The session is sealed, verification confirms that the evidence still holds, and tampering causes Stipul to reject the record.
 
 ```text
 ═══ Stipul Proof Demo ═══
@@ -124,8 +126,6 @@ Proof complete: enforcement decisions recorded, chained, and sealed.
 ```
 
 Other tools can describe agent activity. Stipul shows the proof path: governed actions, recorded decisions, and verifiable evidence.
-
-For real agent attach paths, see the integration quickstarts below.
 
 ## Integrations
 
