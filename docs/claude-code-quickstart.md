@@ -63,7 +63,7 @@ EOF
 
 ## Step 6 — Create the charter
 
-This Charter lets Claude review local files while denying higher-risk authority. `filesystem.read` is the only permitted tool. Both `filesystem.write` and `shell.exec` are unconditionally denied. Claude can inspect project files, but **Writ** will block command execution before it runs.
+This Charter lets Claude review local files while denying higher-risk authority. `file.read` is the only permitted tool. Both `file.write` and `shell.exec` are unconditionally denied. Claude can inspect project files, but **Writ** will block command execution before it runs.
 
 ```bash
 cat > charter.yaml << 'EOF'
@@ -76,13 +76,13 @@ signed_by: null
 identity_agent_id: "claude-code-review"
 identity_code_sha256: null
 allowed_tools:
-  - "filesystem.read"
+  - "file.read"
 never_allow_tools:
-  - "filesystem.write"
+  - "file.write"
   - "shell.exec"
 tool_risk_classes:
-  filesystem.read: "read"
-  filesystem.write: "write"
+  file.read: "read"
+  file.write: "write"
   shell.exec: "irreversible"
 max_tool_calls: 10
 max_net_calls: 0
@@ -102,7 +102,7 @@ cat > .mcp.json << 'EOF'
       "command": "stipul",
       "args": [
         "gateway", "mcp",
-        "--contract", "./charter.yaml",
+        "--charter", "./charter.yaml",
         "--session-dir", "./stipul-session",
         "--session-id", "de000001-0001-0001-0001-000000000001",
         "--runtime", "stipul.examples.demo_runtime:build_runtime"
@@ -136,7 +136,7 @@ Expected outcome: Claude requests a local file read. **Writ** allows it under th
 **Prompt 2** — DENY:
 > Check whether any secrets or API keys are exposed in the local environment by inspecting environment variables.
 
-Expected outcome: Claude should request shell execution to inspect the local environment. **Writ** denies `shell.exec` under the Charter before execution.
+Expected outcome: this is an explicit attempted denied action. **Writ** denies `shell.exec` under the Charter before execution.
 
 If Claude does not request shell execution, use this more explicit prompt: Check whether any secrets or API keys are exposed in the local environment by running a command such as printenv.
 
@@ -185,9 +185,9 @@ jq . ./stipul-session/events.jsonl
 
 You'll see one event per line, including session lifecycle events and each tool-call decision. In this demo, the key events are:
 
-* `filesystem.read` → allowed
+* `file.read` → allowed
 * `shell.exec` → denied
-* `filesystem.read` → allowed
+* `file.read` → allowed
 
 Each event is timestamped and sequenced, so the session is not just a claim of control. It is an itemized record of what Claude was allowed to do, what it was denied, and how the review continued afterward.
 

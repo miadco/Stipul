@@ -300,7 +300,7 @@ Run the existing MCP gateway surface over stdio.
 
 ```bash
 stipul gateway mcp \
-  --contract charter.yaml \
+  --charter charter.yaml \
   --session-dir /path/to/session \
   --session-id 11111111-1111-1111-1111-111111111111 \
   --runtime stipul.examples.echo_runtime:build_runtime \
@@ -309,7 +309,7 @@ stipul gateway mcp \
 
 Required arguments:
 
-- `--contract`: Charter policy file, preferably YAML
+- `--charter`: Charter policy file, preferably YAML
 - `--session-dir`: session directory that will hold `events.jsonl`
 - `--session-id`: stable session UUID
 - `--runtime`: import path in `module:callable` form returning `{"tool_catalog": ..., "execute_tool": ...}`
