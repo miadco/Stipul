@@ -14,7 +14,7 @@ A log describes activity. The Chronicle preserves evidence.
 
 A hash detects tampering. A Seal proves integrity.
 
-![Stipul enforcement boundary](docs/images/stipul-enforcement-boundary.svg)
+![Stipul enforcement boundary](https://raw.githubusercontent.com/miadco/Stipul/main/docs/images/whatever.png)
 
 [Quickstart](#see-it-work) · [Claude Code](docs/claude-code-quickstart.md) · [OpenAI Agents](integrations/openai-agents/) · [LangGraph](integrations/langgraph/) · [PyPI](https://pypi.org/project/stipul/) · [Docs](docs/)
 
