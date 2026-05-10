@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 import json
 from pathlib import Path
+from typing import Any
 
 import anyio
 from mcp import ClientSession, types
@@ -160,6 +162,73 @@ def test_mcp_gateway_tools_list_filters_mixed_catalog_by_charter(
         proxy.close()
 
 
+def test_mcp_gateway_tools_list_default_visibility_remains_allowed(
+    tmp_path: Path,
+    base_dict: dict[str, object],
+) -> None:
+    contract = _make_contract(
+        base_dict,
+        allowed_tools=["web.search"],
+        never_allow_tools=["shell.exec"],
+    )
+    events_path = tmp_path / "session" / "events.jsonl"
+    proxy = _build_proxy(contract, events_path)
+    gateway = proxy.create_mcp_gateway(
+        tool_catalog=[
+            _make_tool("web.search", "Search the web"),
+            _make_tool("shell.exec", "Run a shell command"),
+            _make_tool("debug.inspect", "Inspect runtime state"),
+        ],
+        execute_tool=lambda _request: {"ok": True},
+    )
+
+    async def scenario() -> list[str]:
+        async with create_connected_server_and_client_session(gateway.server) as session:
+            listed = await session.list_tools()
+            return [tool.name for tool in listed.tools]
+
+    try:
+        assert anyio.run(scenario) == ["web.search"]
+    finally:
+        proxy.close()
+
+
+def test_mcp_gateway_tools_list_governed_visibility_exposes_runtime_catalog(
+    tmp_path: Path,
+    base_dict: dict[str, object],
+) -> None:
+    contract = _make_contract(
+        base_dict,
+        allowed_tools=["web.search"],
+        never_allow_tools=["shell.exec"],
+    )
+    events_path = tmp_path / "session" / "events.jsonl"
+    proxy = _build_proxy(contract, events_path)
+    gateway = proxy.create_mcp_gateway(
+        tool_catalog=[
+            _make_tool("web.search", "Search the web"),
+            _make_tool("shell.exec", "Run a shell command"),
+            _make_tool("debug.inspect", "Inspect runtime state"),
+        ],
+        execute_tool=lambda _request: {"ok": True},
+        tool_visibility="governed",
+    )
+
+    async def scenario() -> list[str]:
+        async with create_connected_server_and_client_session(gateway.server) as session:
+            listed = await session.list_tools()
+            return [tool.name for tool in listed.tools]
+
+    try:
+        assert anyio.run(scenario) == [
+            "web.search",
+            "shell.exec",
+            "debug.inspect",
+        ]
+    finally:
+        proxy.close()
+
+
 def test_mcp_gateway_tools_list_hides_never_allow_tool_when_overlap_exists(
     tmp_path: Path,
     base_dict: dict[str, object],
@@ -186,6 +255,59 @@ def test_mcp_gateway_tools_list_hides_never_allow_tool_when_overlap_exists(
 
     try:
         assert anyio.run(scenario) == ["web.search"]
+    finally:
+        proxy.close()
+
+
+def test_mcp_gateway_governed_visible_never_allow_tool_is_denied_at_execution(
+    tmp_path: Path,
+    base_dict: dict[str, object],
+) -> None:
+    contract = _make_contract(
+        base_dict,
+        allowed_tools=["web.search", "shell.exec"],
+        never_allow_tools=["shell.exec"],
+    )
+    events_path = tmp_path / "session" / "events.jsonl"
+    proxy = _build_proxy(contract, events_path)
+    called = {"count": 0}
+
+    def execute_tool(_request: Mapping[str, Any]) -> dict[str, Any]:
+        called["count"] += 1
+        return {"ok": True}
+
+    gateway = proxy.create_mcp_gateway(
+        tool_catalog=[
+            _make_tool("web.search", "Search the web"),
+            _make_tool("shell.exec", "Run a shell command"),
+        ],
+        execute_tool=execute_tool,
+        tool_visibility="governed",
+    )
+
+    async def scenario() -> types.CallToolResult:
+        async with create_connected_server_and_client_session(gateway.server) as session:
+            listed = await session.list_tools()
+            assert [tool.name for tool in listed.tools] == ["web.search", "shell.exec"]
+            return await session.call_tool("shell.exec", {"command": "date"})
+
+    try:
+        result = anyio.run(scenario)
+        assert result.isError is True
+        assert result.structuredContent == {
+            "decision": "deny",
+            "reason": "never_allow_tools",
+            "tool_name": "shell.exec",
+        }
+        assert called["count"] == 0
+
+        events = _read_events(events_path)
+        assert len(events) == 2
+        _assert_session_open(events[0], contract)
+        assert events[1]["event_type"] == "tool_call"
+        assert events[1]["decision"] == "deny"
+        assert events[1]["reason"] == "never_allow_tools"
+        assert events[1]["rule_triggered"] == "never_allow_tools"
     finally:
         proxy.close()
 

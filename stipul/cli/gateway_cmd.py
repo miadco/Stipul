@@ -57,6 +57,15 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
         required=True,
         help="Import path to runtime factory in the form module:callable",
     )
+    mcp_parser.add_argument(
+        "--tool-visibility",
+        choices=("allowed", "governed"),
+        default="allowed",
+        help=(
+            "Tool discovery mode: allowed lists only Charter-allowed tools; "
+            "governed lists every runtime tool while call-time Writ enforcement remains active"
+        ),
+    )
     mcp_parser.set_defaults(handler=run)
 
 
@@ -123,6 +132,7 @@ def run(args: argparse.Namespace) -> int:
             gateway = proxy.create_mcp_gateway(
                 tool_catalog=tool_catalog,
                 execute_tool=execute_tool,
+                tool_visibility=getattr(args, "tool_visibility", "allowed"),
             )
 
             def _sigterm_handler(signum: int, frame: Any) -> None:

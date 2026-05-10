@@ -304,6 +304,7 @@ stipul gateway mcp \
   --session-dir /path/to/session \
   --session-id 11111111-1111-1111-1111-111111111111 \
   --runtime stipul.examples.echo_runtime:build_runtime \
+  --tool-visibility allowed \
   --control-port 0
 ```
 
@@ -316,6 +317,7 @@ Required arguments:
 
 Optional arguments:
 
+- `--tool-visibility allowed|governed`: choose the MCP discovery surface. The default `allowed` lists only tools allowed by the active Charter and excludes `never_allow_tools`. `governed` lists every tool in the configured runtime catalog so clients can discover governed tools that may be denied later. Execution is unchanged: every `tools/call` still goes through Writ enforcement at call time.
 - `--control-port`: if set, start the existing loopback control sidecar in the same process. Use `0` to auto-select a free local port.
 
 The shipped example runtime is:

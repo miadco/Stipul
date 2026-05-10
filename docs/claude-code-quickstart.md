@@ -103,6 +103,7 @@ cat > .mcp.json << 'EOF'
       "args": [
         "gateway", "mcp",
         "--charter", "./charter.yaml",
+        "--tool-visibility", "governed",
         "--session-dir", "./stipul-session",
         "--session-id", "de000001-0001-0001-0001-000000000001",
         "--runtime", "stipul.examples.demo_runtime:build_runtime"
@@ -115,6 +116,8 @@ cat > .mcp.json << 'EOF'
 }
 EOF
 ```
+
+The demo runtime provides placeholder tools such as `file.read`, `file.write`, and `shell.exec` that return static placeholder responses. This is intentional: the demo proves Charter enforcement, Chronicle recording, and Seal verification, not real tool execution. To connect real tools, replace the `--runtime` arg with your own runtime module.
 
 ## Step 8 — Launch Claude Code
 

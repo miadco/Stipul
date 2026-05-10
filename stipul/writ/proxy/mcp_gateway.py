@@ -7,7 +7,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 import json
 from threading import Lock, Thread
-from typing import Any
+from typing import Any, Literal
 
 from mcp import types
 from mcp.server.lowlevel import Server
@@ -17,6 +17,7 @@ from stipul import __version__
 
 
 ToolCatalog = Callable[[], Sequence[types.Tool]] | Sequence[types.Tool]
+ToolVisibility = Literal["allowed", "governed"]
 
 
 def _result_text(payload: Any) -> str:
@@ -60,6 +61,7 @@ class MCPGateway:
     proxy: Any
     tool_catalog: ToolCatalog
     execute_tool: Callable[[Mapping[str, Any]], Any]
+    tool_visibility: ToolVisibility = "allowed"
     server_name: str = "stipul-mcp-gateway"
     instructions: str = (
         "Minimal Stipul MCP gateway. Tool calls are enforced by the existing Writ proxy."
@@ -77,7 +79,7 @@ class MCPGateway:
 
         @self.server.list_tools()  # type: ignore[no-untyped-call,untyped-decorator]
         async def list_tools() -> list[types.Tool]:
-            return list(self._charter_visible_tools())
+            return list(self._visible_tools())
 
         @self.server.call_tool()  # type: ignore[untyped-decorator]
         async def call_tool(tool_name: str, arguments: dict[str, Any]) -> types.CallToolResult:
@@ -94,7 +96,10 @@ class MCPGateway:
             return self.tool_catalog()
         return self.tool_catalog
 
-    def _charter_visible_tools(self) -> Sequence[types.Tool]:
+    def _visible_tools(self) -> Sequence[types.Tool]:
+        if self.tool_visibility == "governed":
+            return list(self._current_tools())
+
         allowed_tools = self.proxy.contract.allowed_tools
         if not allowed_tools:
             return []
@@ -160,4 +165,4 @@ class MCPGateway:
             return
 
 
-__all__ = ["MCPGateway", "ToolCatalog"]
+__all__ = ["MCPGateway", "ToolCatalog", "ToolVisibility"]

@@ -68,7 +68,7 @@ _SESSION_PUBLIC_KEY_FILENAME = "public_key.pem"
 
 if TYPE_CHECKING:
     from stipul.writ.proxy.control_sidecar import ControlSidecar
-    from stipul.writ.proxy.mcp_gateway import MCPGateway
+    from stipul.writ.proxy.mcp_gateway import MCPGateway, ToolVisibility
 
 
 def _now_iso_utc() -> str:
@@ -619,6 +619,7 @@ class ProxyServer:
         *,
         tool_catalog: Callable[[], list[Any]] | list[Any],
         execute_tool: Callable[[Mapping[str, Any]], Any],
+        tool_visibility: ToolVisibility = "allowed",
     ) -> MCPGateway:
         from stipul.writ.proxy.mcp_gateway import MCPGateway
 
@@ -626,6 +627,7 @@ class ProxyServer:
             proxy=self,
             tool_catalog=tool_catalog,
             execute_tool=execute_tool,
+            tool_visibility=tool_visibility,
         )
 
     def __del__(self) -> None:  # pragma: no cover - best-effort cleanup

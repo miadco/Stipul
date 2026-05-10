@@ -65,9 +65,16 @@ def test_gateway_cli_constructs_proxy_and_runs_existing_gateway(monkeypatch, tmp
             created["control_port"] = port
             return "http://127.0.0.1:43123"
 
-        def create_mcp_gateway(self, *, tool_catalog: object, execute_tool: object) -> FakeGateway:
+        def create_mcp_gateway(
+            self,
+            *,
+            tool_catalog: object,
+            execute_tool: object,
+            tool_visibility: str,
+        ) -> FakeGateway:
             created["tool_catalog"] = tool_catalog
             created["execute_tool"] = execute_tool
+            created["tool_visibility"] = tool_visibility
             return FakeGateway()
 
         def close(self) -> None:
@@ -101,6 +108,7 @@ def test_gateway_cli_constructs_proxy_and_runs_existing_gateway(monkeypatch, tmp
         session_id="11111111-1111-1111-1111-111111111111",
         control_port=None,
         runtime="fake_gateway_runtime:build_runtime",
+        tool_visibility="governed",
     )
 
     result = gateway_cmd.run(args)
@@ -111,6 +119,7 @@ def test_gateway_cli_constructs_proxy_and_runs_existing_gateway(monkeypatch, tmp
     assert created["events_path"] == tmp_path / "session" / "events.jsonl"
     assert created["tool_catalog"] is runtime_catalog
     assert created["execute_tool"] is runtime_execute_tool
+    assert created["tool_visibility"] == "governed"
     assert getattr(created["run_target"], "__name__", "") == "run_stdio"
     assert created["closed"] is True
     assert "control_port" not in created
@@ -145,6 +154,7 @@ def test_gateway_cli_requires_runtime_factory_shape(monkeypatch, tmp_path: Path)
         session_id="11111111-1111-1111-1111-111111111111",
         control_port=None,
         runtime="bad_gateway_runtime:build_runtime",
+        tool_visibility="allowed",
     )
 
     with pytest.raises(CLIError, match="missing callable execute_tool"):
@@ -173,9 +183,16 @@ def test_gateway_cli_optional_control_port_starts_existing_sidecar(monkeypatch, 
             created["control_url"] = f"http://127.0.0.1:{port if port else 43123}"
             return str(created["control_url"])
 
-        def create_mcp_gateway(self, *, tool_catalog: object, execute_tool: object) -> FakeGateway:
+        def create_mcp_gateway(
+            self,
+            *,
+            tool_catalog: object,
+            execute_tool: object,
+            tool_visibility: str,
+        ) -> FakeGateway:
             created["tool_catalog"] = tool_catalog
             created["execute_tool"] = execute_tool
+            created["tool_visibility"] = tool_visibility
             return FakeGateway()
 
         def close(self) -> None:
@@ -203,6 +220,7 @@ def test_gateway_cli_optional_control_port_starts_existing_sidecar(monkeypatch, 
         session_id="11111111-1111-1111-1111-111111111111",
         control_port=0,
         runtime="fake_gateway_runtime:build_runtime",
+        tool_visibility="allowed",
     )
 
     result = gateway_cmd.run(args)
@@ -210,5 +228,6 @@ def test_gateway_cli_optional_control_port_starts_existing_sidecar(monkeypatch, 
     assert result == 0
     assert created["control_port"] == 0
     assert str(created["control_url"]).startswith("http://127.0.0.1:")
+    assert created["tool_visibility"] == "allowed"
     assert getattr(created["run_target"], "__name__", "") == "run_stdio"
     assert created["closed"] is True
