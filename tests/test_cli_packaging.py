@@ -62,4 +62,4 @@ def test_console_script_installs_and_runs_in_isolated_venv(tmp_path: Path) -> No
     )
 
     assert version_result.returncode == 0
-    assert version_result.stdout.strip() == "0.2.5"
+    assert version_result.stdout.strip() == "0.2.6"
