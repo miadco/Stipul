@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 
+import pytest
 import yaml
 
+from stipul.cli.verify_cmd import _render_receipt
 from stipul.seal.builder import (
     build_session_seal,
     seal_path as resolve_seal_path,
     write_seal,
 )
 from stipul.seal.signer import sign_seal
-from stipul.seal.verifier import verify_seal
+from stipul.seal.verifier import SealVerificationResult, verify_seal
 from stipul.utils.canonical import compute_prev_hash
 from stipul.writ.proxy.server import ProxyServer
 
@@ -79,6 +83,43 @@ def _line_with_prefix(lines: list[str], prefix: str) -> str | None:
 def _write_yaml_contract(path: Path, payload: dict[str, object]) -> Path:
     path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
     return path
+
+
+def _chain_result(status: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        status=status,
+        session_id=DEFAULT_SESSION_ID,
+        failures=[],
+        error=None,
+        first_failure_sequence_id=None,
+        verifiable_up_to_sequence_id=None,
+    )
+
+
+def test_verify_receipt_colorizes_trust_chain_and_seal_values_for_tty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _TTY:
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setattr(sys, "stdout", _TTY())
+
+    verified = _render_receipt(
+        _chain_result("INTACT"),
+        SealVerificationResult(status="VALID"),
+    )
+    assert "Trust: \033[32mVERIFIED\033[0m" in verified
+    assert "Chain: \033[32mINTACT\033[0m" in verified
+    assert "Seal: \033[32mVALID\033[0m" in verified
+
+    rejected = _render_receipt(
+        _chain_result("BROKEN"),
+        SealVerificationResult(status="INVALID"),
+    )
+    assert "Trust: \033[31mREJECTED\033[0m" in rejected
+    assert "Chain: \033[31mBROKEN\033[0m" in rejected
+    assert "Seal: \033[31mINVALID\033[0m" in rejected
 
 
 def _write_synthetic_seal(session_dir: Path, events_path: Path, private_key) -> None:

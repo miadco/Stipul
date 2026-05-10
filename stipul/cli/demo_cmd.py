@@ -18,6 +18,8 @@ from stipul.cli.verify_cmd import trust_status, verify_session
 from stipul.writ.proxy.server import ProxyServer
 
 _DEMO_TOKEN_SECRET = "stipul-demo-secret"  # nosec B105 - intentional non-production demo secret
+_GREEN_STATUSES = {"VERIFIED", "INTACT", "VALID"}
+_RED_STATUSES = {"REJECTED", "BROKEN", "INVALID"}
 
 
 def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -128,6 +130,14 @@ def _session_id(events: list[dict[str, object]]) -> str:
     raise CLIError("Demo produced no session_id in Chronicle events", exit_code=3)
 
 
+def _status_display(status: str) -> str:
+    if status in _GREEN_STATUSES:
+        return colorize(status, GREEN)
+    if status in _RED_STATUSES:
+        return colorize(status, RED)
+    return status
+
+
 def _display_reason(event: dict[str, object]) -> str | None:
     reason = event.get("reason")
     if not isinstance(reason, str) or not reason:
@@ -221,6 +231,8 @@ def _render_output(session_dir: Path) -> str:
         chain_status=verification.chain_result.status,
         seal_status=verification.seal_result.status,
     )
+    chain_status_display = _status_display(verification.chain_result.status)
+    seal_status_display = _status_display(verification.seal_result.status)
     # Chronicle lifecycle events exist outside the operator-facing decision count.
     display_event_text = f"{display_event_count} decisions"
     inspect_cmd = f"cat {seal_path} | python3 -m json.tool"
@@ -239,12 +251,12 @@ def _render_output(session_dir: Path) -> str:
         *replay_rows,
         "",
         f"Trust: {trust}",
-        f"  Chain: {verification.chain_result.status}",
-        f"  Seal:  {verification.seal_result.status}",
+        f"  Chain: {chain_status_display}",
+        f"  Seal:  {seal_status_display}",
         f"  Decisions: {display_event_count}",
         (
-            f"  Fingerprint: {session_id} | {verification.chain_result.status} | "
-            f"{verification.seal_result.status} | {display_event_text} | {seal_fingerprint}"
+            f"  Fingerprint: {session_id} | {chain_status_display} | "
+            f"{seal_status_display} | {display_event_text} | {seal_fingerprint}"
         ),
         "",
         "═══ Tamper Challenge ═══",

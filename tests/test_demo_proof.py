@@ -3,9 +3,14 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import sys
 from pathlib import Path
 
+import pytest
+
 from tests.cli_support import run_cli
+
+from stipul.cli import demo_cmd
 
 
 def _session_dir_from_output(stdout: str) -> Path:
@@ -22,8 +27,11 @@ def test_demo_proof_prints_verified_receipt_and_tamper_payoff() -> None:
     result = run_cli("demo", "proof")
 
     assert result.returncode == 0
+    assert "\033[" not in result.stdout
     assert "reason: allowed_tool" in result.stdout
     assert "Trust: VERIFIED" in result.stdout
+    assert "  Chain: INTACT" in result.stdout
+    assert "  Seal:  VALID" in result.stdout
     assert "  Decisions: 3" in result.stdout
     assert "Step 1 — View the current seal:" in result.stdout
     assert "Step 2 — Verify the session as-is:" in result.stdout
@@ -87,3 +95,24 @@ def test_demo_proof_session_id_is_real_uuid() -> None:
         assert str(parsed) == session_id
     finally:
         shutil.rmtree(session_dir.parent, ignore_errors=True)
+
+
+def test_demo_proof_trust_block_colorizes_values_for_tty(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class _TTY:
+        def isatty(self) -> bool:
+            return True
+
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    with demo_cmd._demo_charter_path() as charter_path:
+        demo_cmd._run_proof_session(session_dir, charter_path)
+
+    monkeypatch.setattr(sys, "stdout", _TTY())
+    output = demo_cmd._render_output(session_dir)
+
+    assert "Trust: \033[32mVERIFIED\033[0m" in output
+    assert "  Chain: \033[32mINTACT\033[0m" in output
+    assert "  Seal:  \033[32mVALID\033[0m" in output
