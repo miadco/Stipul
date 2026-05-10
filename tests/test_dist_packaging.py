@@ -149,4 +149,4 @@ def _assert_artifact_smoke(
     )
 
     assert version_result.returncode == 0
-    assert version_result.stdout.strip() == "0.2.3"
+    assert version_result.stdout.strip() == "0.2.5"
