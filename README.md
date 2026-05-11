@@ -58,7 +58,7 @@ Seal verification checks the evidence record and rejects it if integrity fails.
 
 **Integrity is verified by the Seal.** The Seal lets any verifier confirm evidence integrity and reject tampered records.
 
-## See it work
+## Tamper Challenge: Edit Chronicle to Test Seal
 
 Install Stipul as a CLI app with pipx (Python 3.10+):
 
