@@ -16,7 +16,7 @@ A hash detects tampering. A Seal proves integrity.
 
 ![Stipul enforcement boundary](https://raw.githubusercontent.com/miadco/Stipul/main/docs/images/stipul-enforcement-boundary.png)
 
-[Quickstart](#see-it-work) · [Claude Code](docs/claude-code-quickstart.md) · [OpenAI Agents](integrations/openai-agents/) · [LangGraph](integrations/langgraph/) · [PyPI](https://pypi.org/project/stipul/) · [Docs](docs/)
+[Tamper Challenge](#tamper-challenge) · [Claude Code](docs/claude-code-quickstart.md) · [OpenAI Agents](integrations/openai-agents/) · [LangGraph](integrations/langgraph/) · [PyPI](https://pypi.org/project/stipul/) · [Docs](docs/)
 
 ---
 
@@ -57,6 +57,8 @@ Seal verification checks the evidence record and rejects it if integrity fails.
 **Decisions become Chronicle evidence.** Allowed and denied actions are recorded as decision evidence in `events.jsonl`.
 
 **Integrity is verified by the Seal.** The Seal lets any verifier confirm evidence integrity and reject tampered records.
+
+<a id="tamper-challenge"></a>
 
 ## Tamper Challenge: Edit Chronicle to Test Seal
 
