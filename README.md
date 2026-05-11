@@ -69,7 +69,16 @@ pipx install stipul
 stipul demo proof
 ```
 
-`stipul demo proof` runs a real enforcement session against the packaged demo Charter. One tool is allowed, one is denied by egress policy, and one is denied by a never-allow rule. The session is sealed, verification confirms that the evidence still holds, and tampering causes Stipul to reject the record.
+Run the demo and Stipul will create a short agent session.
+
+You will see one action allowed, two actions blocked, and a proof receipt showing the record is trusted.
+
+Then Stipul asks you to edit the evidence.
+
+Run verification again, and the proof breaks.
+
+That is the point: if the record changes, Stipul catches it.
+
 
 ```text
 ═══ Stipul Proof Demo ═══
