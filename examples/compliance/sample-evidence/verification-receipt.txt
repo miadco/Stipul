@@ -1,0 +1,7 @@
+Verification receipt
+Session: 22222222-2222-4222-8222-222222222222
+Trust: VERIFIED
+Chain: INTACT
+Seal: VALID
+Terminal: seq=6 at 2026-05-28T16:00:22Z
+Key: 1a2b3c4d

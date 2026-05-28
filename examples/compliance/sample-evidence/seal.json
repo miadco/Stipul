@@ -1,0 +1,15 @@
+{
+  "algorithm": "ed25519",
+  "contract_hash": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
+  "contract_id": "6f9d0d52-88a9-4b11-bd71-0fb07e8c1001",
+  "events_sha256": "ed6e440faf7a879e00df96f223f182d3c2037b6810453f511a11225aa158298b",
+  "key_created_at": "2026-05-28T16:00:00Z",
+  "key_id": "1a2b3c4d",
+  "kind": "session_seal",
+  "session_id": "22222222-2222-4222-8222-222222222222",
+  "signature": "c2FtcGxlLXNlYWwtc2lnbmF0dXJl",
+  "terminal_event_hash": "0606060606060606060606060606060606060606060606060606060606060606",
+  "terminal_sequence_id": 6,
+  "terminal_timestamp": "2026-05-28T16:00:22Z",
+  "version": 1
+}

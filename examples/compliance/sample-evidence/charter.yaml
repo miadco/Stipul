@@ -1,0 +1,47 @@
+schema_version: "1.0"
+contract_id: "6f9d0d52-88a9-4b11-bd71-0fb07e8c1001"
+parent_contract_id: null
+created_at: "2026-05-28T16:00:00Z"
+expires_at: "2026-05-29T16:00:00Z"
+signed_by: "security-governance@example.com"
+identity_agent_id: "agent.support-reviewer"
+identity_code_sha256: null
+allowed_tools:
+  - "ticket.read"
+  - "ticket.update"
+  - "knowledge.search"
+  - "network.fetch"
+never_allow_tools:
+  - "shell.exec"
+  - "database.drop"
+  - "ticket.delete"
+tool_risk_classes:
+  ticket.read: "read"
+  ticket.update: "write"
+  knowledge.search: "read"
+  network.fetch: "exfil_risk"
+  shell.exec: "irreversible"
+  database.drop: "irreversible"
+  ticket.delete: "irreversible"
+argument_constraints:
+  ticket.update:
+    - arg: "status"
+      allow:
+        - "open"
+        - "pending"
+        - "resolved"
+    - arg: "note"
+      deny:
+        - "*password*"
+        - "*secret*"
+  network.fetch:
+    - arg: "url"
+      allow:
+        - "https://kb.example.com/*"
+max_tool_calls: 25
+max_net_calls: 3
+egress_allowlist:
+  - "kb.example.com"
+  - ".trusted.example"
+approval_quorum: 1
+

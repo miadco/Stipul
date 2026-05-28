@@ -1,0 +1,14 @@
+{
+  "break_point": null,
+  "chain_status": "INTACT",
+  "error": null,
+  "failures": [],
+  "first_failure_sequence_id": null,
+  "seal_reason": null,
+  "seal_status": "VALID",
+  "signed_event_count": 6,
+  "total_events": 6,
+  "unsigned_count": 0,
+  "verifiable_up_to_sequence_id": null
+}
+

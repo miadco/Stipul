@@ -1,0 +1,38 @@
+{
+  "files": [
+    {
+      "description": "Charter policy fixture with agent identity, tool boundaries, risk classes, argument constraints, budgets, and egress allowlist.",
+      "path": "charter.yaml"
+    },
+    {
+      "description": "Authoritative Chronicle event stream with six canonical events.",
+      "path": "events.jsonl"
+    },
+    {
+      "description": "Decision projection for events with allow or deny outcomes.",
+      "path": "decisions.jsonl"
+    },
+    {
+      "description": "Reviewer summary with event counts, allow count, deny count, and session context.",
+      "path": "summary.json"
+    },
+    {
+      "description": "Seal payload using committed Seal field names.",
+      "path": "seal.json"
+    },
+    {
+      "description": "Human-readable verification receipt matching the CLI receipt format.",
+      "path": "verification-receipt.txt"
+    },
+    {
+      "description": "Machine-readable verification status report.",
+      "path": "verification-report.json"
+    },
+    {
+      "description": "Inventory for the sample evidence directory.",
+      "path": "manifest.json"
+    }
+  ],
+  "session_id": "22222222-2222-4222-8222-222222222222"
+}
+
